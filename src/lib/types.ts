@@ -44,6 +44,13 @@ export interface SiteContent {
   phone: string;
   email: string;
   address?: string;
+  facebookUrl?: string;
+  instagramUrl?: string;
+  tiktokUrl?: string;
+  threadsUrl?: string;
+  youtubeUrl?: string;
+  twitterUrl?: string;
+  footerTagline?: string;
   featuresTitle: string;
   featuresSubtitle: string;
   features: Feature[];

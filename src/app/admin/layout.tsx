@@ -81,6 +81,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <div className="p-5 border-b border-white/10 flex items-center justify-between">
               <Link href="/admin" className="flex items-center gap-2 text-white">
                 <span className="material-icons text-primary">forest</span>
+                {/* <img src="/assets/logo.png" alt="Kamp Lambingan" className="h-6" /> */}
                 <span className="font-bold text-sm">Kamp Lambingan</span>
               </Link>
               <button

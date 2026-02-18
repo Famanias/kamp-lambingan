@@ -8,6 +8,13 @@ export const DEFAULT_CONTENT: SiteContent = {
     'Reconnect with nature in our private AC villas. Experience serene river views, starry nights, and the luxury of doing absolutely nothing.',
   phone: '0939 594 5555',
   email: 'kamplambingan@gmail.com',
+  facebookUrl: 'https://www.facebook.com/kamplambingan',
+  instagramUrl: 'https://www.instagram.com/kamplambingan',
+  tiktokUrl: '',
+  threadsUrl: '',
+  youtubeUrl: '',
+  twitterUrl: '',
+  footerTagline: 'Your riverside camping escape in the heart of nature.',
   featuresTitle: 'Not Your Typical Beach Trip',
   featuresSubtitle:
     'Kamp Lambingan offers a unique riverside experience — think tents, mountains, and forest instead of sand and saltwater.',

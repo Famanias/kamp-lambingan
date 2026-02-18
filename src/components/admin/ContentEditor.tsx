@@ -9,7 +9,7 @@ interface ContentEditorProps {
   initialContent: SiteContent;
 }
 
-type Section = 'hero' | 'contact' | 'features' | 'activities' | 'packages' | 'reviews' | 'faq' | 'gallery';
+type Section = 'hero' | 'contact' | 'features' | 'activities' | 'packages' | 'reviews' | 'faq' | 'gallery' | 'footer';
 
 const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: 'hero', label: 'Hero', icon: 'auto_awesome' },
@@ -20,6 +20,7 @@ const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: 'reviews', label: 'Reviews', icon: 'rate_review' },
   { key: 'faq', label: 'FAQ', icon: 'help' },
   { key: 'gallery', label: 'Gallery', icon: 'photo_library' },
+  { key: 'footer', label: 'Footer', icon: 'web' },
 ];
 
 export default function ContentEditor({ initialContent }: ContentEditorProps) {
@@ -333,6 +334,47 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {activeSection === 'footer' && (
+            <div className="space-y-4">
+              <div>
+                <label className={labelClass}>Footer Tagline</label>
+                <textarea className={inputClass} rows={2} value={content.footerTagline || ''} onChange={(e) => updateField('footerTagline', e.target.value)} />
+                <p className="text-xs text-gray-400 mt-1">Short description shown under the logo in the footer.</p>
+              </div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-2">Social Media Links</p>
+              <p className="text-xs text-gray-400 -mt-2">Leave any field blank to hide that icon in the footer.</p>
+              <div>
+                <label className={labelClass}>Facebook URL</label>
+                <input className={inputClass} type="url" placeholder="https://www.facebook.com/yourpage" value={content.facebookUrl || ''} onChange={(e) => updateField('facebookUrl', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>Instagram URL</label>
+                <input className={inputClass} type="url" placeholder="https://www.instagram.com/yourpage" value={content.instagramUrl || ''} onChange={(e) => updateField('instagramUrl', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>TikTok URL</label>
+                <input className={inputClass} type="url" placeholder="https://www.tiktok.com/@yourpage" value={content.tiktokUrl || ''} onChange={(e) => updateField('tiktokUrl', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>Threads URL</label>
+                <input className={inputClass} type="url" placeholder="https://www.threads.net/@yourpage" value={content.threadsUrl || ''} onChange={(e) => updateField('threadsUrl', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>YouTube URL</label>
+                <input className={inputClass} type="url" placeholder="https://www.youtube.com/@yourchannel" value={content.youtubeUrl || ''} onChange={(e) => updateField('youtubeUrl', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass}>Twitter / X URL</label>
+                <input className={inputClass} type="url" placeholder="https://twitter.com/yourpage" value={content.twitterUrl || ''} onChange={(e) => updateField('twitterUrl', e.target.value)} />
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg text-xs text-gray-500 space-y-1">
+                <p className="font-semibold text-gray-600 mb-2">Also displayed in the footer (edit in other sections):</p>
+                <p>• <strong>Site Title</strong> — Hero section</p>
+                <p>• <strong>Phone &amp; Email</strong> — Contact section</p>
+              </div>
             </div>
           )}
 
