@@ -526,3 +526,13 @@ images: {
   ],
 },
 ```
+
+
+## to seed data:
+
+cd "c:\path-to-repository-folder\kamp-lambingan"
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+npm run seed
+
+To wipe all bookings and re-seed fresh:
+npm run seed:reset
