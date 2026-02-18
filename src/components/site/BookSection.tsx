@@ -1,7 +1,7 @@
 import { SiteContent } from '@/lib/types';
 
 const GOOGLE_MAPS_EMBED =
-  'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d10903.724139762411!2d120.14657517392558!3d14.934383265722497!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3396587bf3b2b1f3%3A0xd56b0b931dca1ba7!2sKamp%20Lambingan!5e0!3m2!1sen!2sph!4v1700000000000!5m2!1sen!2sph';
+  'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3855.0313443005775!2d120.1452688748924!3d14.935346985591652!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3395d7a24fd1ba29%3A0xba863a2e2c20d1f6!2sKamp%20Lambingan!5e0!3m2!1sen!2sph!4v1771399717161!5m2!1sen!2sph';
 
 export default function BookSection({ content }: { content: SiteContent }) {
   return (

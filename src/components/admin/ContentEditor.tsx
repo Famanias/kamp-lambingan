@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { saveContent } from '@/actions/content';
 import { SiteContent, Feature, Activity, Package, FaqItem, Review } from '@/lib/types';
+import IconPicker from './IconPicker';
 
 interface ContentEditorProps {
   initialContent: SiteContent;
@@ -155,8 +156,8 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className={labelClass}>Icon (Material Icons name)</label>
-                      <input className={inputClass} value={f.icon} onChange={(e) => updateField('features', content.features.map((item, idx) => idx === i ? { ...item, icon: e.target.value } : item))} />
+                      <label className={labelClass}>Icon</label>
+                      <IconPicker value={f.icon} onChange={(icon) => updateField('features', content.features.map((item, idx) => idx === i ? { ...item, icon } : item))} />
                     </div>
                     <div>
                       <label className={labelClass}>Title</label>
@@ -188,7 +189,7 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className={labelClass}>Icon</label>
-                      <input className={inputClass} value={a.icon} onChange={(e) => updateField('activities', content.activities.map((item, idx) => idx === i ? { ...item, icon: e.target.value } : item))} />
+                      <IconPicker value={a.icon} onChange={(icon) => updateField('activities', content.activities.map((item, idx) => idx === i ? { ...item, icon } : item))} />
                     </div>
                     <div>
                       <label className={labelClass}>Title</label>
