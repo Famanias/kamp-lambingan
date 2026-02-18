@@ -34,7 +34,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="bg-background-light font-[Plus_Jakarta_Sans,sans-serif] text-gray-800 antialiased">
+      <body className="bg-background-light font-[Plus_Jakarta_Sans,sans-serif] text-gray-800 antialiased" suppressHydrationWarning>
         {children}
       </body>
     </html>
