@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { saveContent } from '@/actions/content';
 import { SiteContent, Feature, Activity, Package, FaqItem, Review } from '@/lib/types';
 import IconPicker from './IconPicker';
+import ImageInput from './ImageInput';
 
 interface ContentEditorProps {
   initialContent: SiteContent;
@@ -115,12 +116,11 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                 <textarea className={inputClass} rows={3} value={content.heroSubtitle || ''} onChange={(e) => updateField('heroSubtitle', e.target.value)} />
               </div>
               <div>
-                <label className={labelClass}>Hero Image URL</label>
-                <input className={inputClass} value={content.heroImage || ''} onChange={(e) => updateField('heroImage', e.target.value)} />
-                {content.heroImage && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={content.heroImage} alt="Hero preview" className="mt-2 h-24 rounded object-cover" />
-                )}
+                <ImageInput
+                  label="Hero Image"
+                  value={content.heroImage || ''}
+                  onChange={(url) => updateField('heroImage', url)}
+                />
               </div>
             </div>
           )}
@@ -380,27 +380,23 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
           {activeSection === 'gallery' && (
             <div className="space-y-4">
-              <p className="text-sm text-gray-500">Add direct image URLs (Google Photos, etc.). 6 images are displayed on the homepage.</p>
+              <p className="text-sm text-gray-500">Paste a URL or upload an image. 6 images are displayed on the homepage.</p>
               {(content.gallery ?? []).map((url: string, i: number) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <label className={labelClass}>Image {i + 1} URL</label>
-                    <input
-                      className={inputClass}
-                      value={url}
-                      onChange={(e) => updateField('gallery', (content.gallery ?? []).map((item, idx) => idx === i ? e.target.value : item))}
-                    />
+                <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500 uppercase">Image {i + 1}</span>
+                    <button
+                      onClick={() => updateField('gallery', (content.gallery ?? []).filter((_, idx) => idx !== i))}
+                      className="text-red-400 hover:text-red-600"
+                    >
+                      <span className="material-icons text-sm">close</span>
+                    </button>
                   </div>
-                  {url && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={url} alt={`Gallery ${i + 1}`} className="w-16 h-16 rounded object-cover flex-shrink-0" />
-                  )}
-                  <button
-                    onClick={() => updateField('gallery', (content.gallery ?? []).filter((_, idx) => idx !== i))}
-                    className="text-red-400 hover:text-red-600 mt-4 flex-shrink-0"
-                  >
-                    <span className="material-icons text-sm">close</span>
-                  </button>
+                  <ImageInput
+                    value={url}
+                    onChange={(newUrl) => updateField('gallery', (content.gallery ?? []).map((item, idx) => idx === i ? newUrl : item))}
+                    previewClass="mt-1 h-32 w-full rounded object-cover"
+                  />
                 </div>
               ))}
             </div>
@@ -423,7 +419,7 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                 className="flex items-center gap-2 text-primary text-sm font-medium hover:text-primary/80 transition-colors"
               >
                 <span className="material-icons text-sm">add_circle</span>
-                Add {activeSection === 'faq' ? 'FAQ' : activeSection.charAt(0).toUpperCase() + activeSection.slice(1, -1) === 'activitie' ? 'Activity' : activeSection.charAt(0).toUpperCase() + activeSection.slice(1, -1)}
+                {activeSection === 'faq' ? 'Add FAQ' : activeSection === 'features' ? 'Add Feature' : activeSection === 'activities' ? 'Add Activity' : activeSection === 'packages' ? 'Add Package' : activeSection === 'reviews' ? 'Add Review' : 'Add Gallery Image'}
               </button>
             </div>
           )}
