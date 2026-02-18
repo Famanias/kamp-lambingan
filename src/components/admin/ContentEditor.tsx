@@ -48,9 +48,9 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
   const labelClass = 'block text-xs font-medium text-gray-600 mb-1';
 
   return (
-    <div className="flex gap-6">
+    <div className="flex gap-6 h-[calc(100vh-120px)]">
       {/* Section nav */}
-      <aside className="w-44 flex-shrink-0">
+      <aside className="w-44 flex-shrink-0 overflow-y-auto">
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           {SECTIONS.map((s) => (
             <button
@@ -70,8 +70,9 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
       </aside>
 
       {/* Editor panel */}
-      <div className="flex-1 min-w-0 space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="flex-1 min-w-0 flex flex-col overflow-hidden gap-3">
+        {/* Sticky header */}
+        <div className="flex items-center justify-between flex-shrink-0">
           <h3 className="font-semibold text-gray-900 capitalize">{activeSection}</h3>
           <div className="flex items-center gap-3">
             {saveMsg && (
@@ -89,7 +90,10 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-5">
+        {/* Scrollable content + sticky add button */}
+        <div className="flex-1 overflow-hidden bg-white rounded-xl shadow-sm flex flex-col">
+          <div className="flex-1 overflow-y-auto p-5">
+
           {activeSection === 'hero' && (
             <div className="space-y-4">
               <div>
@@ -165,12 +169,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   </div>
                 </div>
               ))}
-              <button
-                onClick={() => updateField('features', [...content.features, { icon: 'star', title: 'New Feature', description: '' }])}
-                className="text-primary text-sm font-medium hover:underline"
-              >
-                + Add Feature
-              </button>
             </div>
           )}
 
@@ -203,69 +201,71 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   </div>
                 </div>
               ))}
-              <button
-                onClick={() => updateField('activities', [...content.activities, { icon: 'hiking', title: 'New Activity', description: '' }])}
-                className="text-primary text-sm font-medium hover:underline"
-              >
-                + Add Activity
-              </button>
             </div>
           )}
 
           {activeSection === 'packages' && (
             <div className="space-y-4">
               {content.packages.map((p: Package, i: number) => (
-                <div key={i} className="border border-gray-200 rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500 uppercase">Package {i + 1}</span>
-                    <div className="flex gap-3 items-center">
-                      <label className="flex items-center gap-1 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={p.featured || false}
-                          onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, featured: e.target.checked } : item))}
-                        />
-                        Featured
-                      </label>
+                <div key={i} className={`rounded-xl border-2 overflow-hidden ${p.featured ? 'border-primary' : 'border-gray-200'}`}>
+                  {/* Card header */}
+                  <div className={`flex items-center justify-between px-4 py-3 ${p.featured ? 'bg-primary/10' : 'bg-gray-50'}`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`material-icons text-base ${p.featured ? 'text-primary' : 'text-gray-400'}`}>inventory_2</span>
+                      <span className="font-semibold text-sm text-gray-800">{p.name || `Package ${i + 1}`}</span>
+                      {p.featured && (
+                        <span className="bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide">Featured</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-gray-700">{p.price || '—'}</span>
                       <button
                         onClick={() => updateField('packages', content.packages.filter((_, idx) => idx !== i))}
-                        className="text-red-400 hover:text-red-600 text-xs"
+                        className="text-red-400 hover:text-red-600 transition-colors"
+                        title="Remove package"
                       >
-                        Remove
+                        <span className="material-icons text-base">delete_outline</span>
                       </button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className={labelClass}>Name</label>
-                      <input className={inputClass} value={p.name} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, name: e.target.value } : item))} />
+
+                  {/* Card body */}
+                  <div className="p-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelClass}>Package Name</label>
+                        <input className={inputClass} value={p.name} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, name: e.target.value } : item))} />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Price</label>
+                        <input className={inputClass} value={p.price} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, price: e.target.value } : item))} />
+                      </div>
                     </div>
                     <div>
-                      <label className={labelClass}>Price</label>
-                      <input className={inputClass} value={p.price} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, price: e.target.value } : item))} />
+                      <label className={labelClass}>Description</label>
+                      <textarea className={inputClass} rows={2} value={p.description} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, description: e.target.value } : item))} />
                     </div>
-                  </div>
-                  <div>
-                    <label className={labelClass}>Description</label>
-                    <textarea className={inputClass} rows={2} value={p.description} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, description: e.target.value } : item))} />
-                  </div>
-                  <div>
-                    <label className={labelClass}>Inclusions (one per line)</label>
-                    <textarea
-                      className={inputClass}
-                      rows={4}
-                      value={(p.features ?? p.inclusions ?? []).join('\n')}
-                      onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, features: e.target.value.split('\n').filter(Boolean) } : item))}
-                    />
+                    <div>
+                      <label className={labelClass}>Inclusions (one per line)</label>
+                      <textarea
+                        className={inputClass}
+                        rows={4}
+                        value={(p.features ?? p.inclusions ?? []).join('\n')}
+                        onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, features: e.target.value.split('\n').filter(Boolean) } : item))}
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer w-fit">
+                      <input
+                        type="checkbox"
+                        checked={p.featured || false}
+                        onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, featured: e.target.checked } : item))}
+                        className="w-4 h-4 accent-primary"
+                      />
+                      <span className="text-xs text-gray-600 font-medium">Mark as Featured</span>
+                    </label>
                   </div>
                 </div>
               ))}
-              <button
-                onClick={() => updateField('packages', [...content.packages, { name: 'New Package', price: '₱0', description: '', inclusions: [], featured: false }])}
-                className="text-primary text-sm font-medium hover:underline"
-              >
-                + Add Package
-              </button>
             </div>
           )}
 
@@ -306,12 +306,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   </div>
                 </div>
               ))}
-              <button
-                onClick={() => updateField('reviews', [...content.reviews, { name: 'New Reviewer', text: '', tags: [], date: '' }])}
-                className="text-primary text-sm font-medium hover:underline"
-              >
-                + Add Review
-              </button>
             </div>
           )}
 
@@ -338,12 +332,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   </div>
                 </div>
               ))}
-              <button
-                onClick={() => updateField('faqs', [...content.faqs, { question: 'New Question?', answer: '' }])}
-                className="text-primary text-sm font-medium hover:underline"
-              >
-                + Add FAQ
-              </button>
             </div>
           )}
 
@@ -372,11 +360,27 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   </button>
                 </div>
               ))}
+            </div>
+          )}
+
+          </div>
+
+          {/* Footer add button - only for list sections */}
+          {['features', 'activities', 'packages', 'reviews', 'faq', 'gallery'].includes(activeSection) && (
+            <div className="flex-shrink-0 border-t border-gray-100 px-5 py-3">
               <button
-                onClick={() => updateField('gallery', [...(content.gallery ?? []), ''])}
-                className="text-primary text-sm font-medium hover:underline"
+                onClick={() => {
+                  if (activeSection === 'features') updateField('features', [...content.features, { icon: 'star', title: 'New Feature', description: '' }]);
+                  if (activeSection === 'activities') updateField('activities', [...content.activities, { icon: 'hiking', title: 'New Activity', description: '' }]);
+                  if (activeSection === 'packages') updateField('packages', [...content.packages, { name: 'New Package', price: '₱0', description: '', inclusions: [], featured: false }]);
+                  if (activeSection === 'reviews') updateField('reviews', [...content.reviews, { name: 'New Reviewer', text: '', tags: [], date: '' }]);
+                  if (activeSection === 'faq') updateField('faqs', [...content.faqs, { question: 'New Question?', answer: '' }]);
+                  if (activeSection === 'gallery') updateField('gallery', [...(content.gallery ?? []), '']);
+                }}
+                className="flex items-center gap-2 text-primary text-sm font-medium hover:text-primary/80 transition-colors"
               >
-                + Add Image URL
+                <span className="material-icons text-sm">add_circle</span>
+                Add {activeSection === 'faq' ? 'FAQ' : activeSection.charAt(0).toUpperCase() + activeSection.slice(1, -1) === 'activitie' ? 'Activity' : activeSection.charAt(0).toUpperCase() + activeSection.slice(1, -1)}
               </button>
             </div>
           )}

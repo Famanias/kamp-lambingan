@@ -95,6 +95,8 @@ export default function BookForm({ content }: BookFormProps) {
         setLoading(false);
         return;
       }
+      // Save email so My Bookings page can auto-fill
+      localStorage.setItem('kl_guest_email', form.email);
       router.push(`/booking/${result.id}`);
     } catch {
       setError('Something went wrong. Please try again.');

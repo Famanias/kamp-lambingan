@@ -74,6 +74,8 @@ export interface Booking {
   notes: string | null;
   receipt_url: string | null;
   status: BookingStatus;
+  reference: string | null;
+  is_archived: boolean;
   created_at: string;
   updated_at: string;
 }

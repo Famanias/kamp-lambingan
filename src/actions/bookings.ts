@@ -18,6 +18,9 @@ export interface BookingInput {
 export async function createBooking(formData: FormData) {
   const supabase = await createClient();
 
+  // Generate short human-friendly reference like KL-A3F7B2
+  const reference = 'KL-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
   // Extract fields from FormData
   const input: BookingInput = {
     guest_name: formData.get('name') as string,
@@ -48,19 +51,23 @@ export async function createBooking(formData: FormData) {
       pax: input.pax,
       notes: input.notes ?? null,
       status: 'pending',
+      reference,
     })
     .select('id')
     .single();
 
   if (error) {
-    return { success: false, error: error.message, id: null };
+    return { success: false, error: error.message, id: null, reference: null };
   }
 
   // Upload receipt after insertion
+  console.log('[createBooking] receiptFile:', receiptFile?.name, receiptFile?.size, receiptFile?.type);
   if (receiptFile && receiptFile.size > 0) {
     const receiptUrl = await uploadReceipt(data.id, receiptFile);
+    console.log('[createBooking] receiptUrl result:', receiptUrl);
     if (receiptUrl) {
-      await supabase.from('bookings').update({ receipt_url: receiptUrl }).eq('id', data.id);
+      const { error: updateErr } = await supabase.from('bookings').update({ receipt_url: receiptUrl }).eq('id', data.id);
+      console.log('[createBooking] DB update error:', updateErr?.message ?? 'none');
       input.receipt_url = receiptUrl;
     }
   }
@@ -71,12 +78,17 @@ export async function createBooking(formData: FormData) {
       const { Resend } = await import('resend');
       const resend = new Resend(process.env.RESEND_API_KEY);
       await resend.emails.send({
-        from: 'Kamp Lambingan <noreply@kamplambingan.com>',
+        from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
         to: input.guest_email,
         subject: 'We received your booking request!',
         html: `
           <h2>Hi ${input.guest_name}! 🌿</h2>
           <p>We received your booking request for <strong>${input.package_name}</strong>.</p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:16px;border-radius:8px;margin:16px 0;">
+            <p style="margin:0 0 4px 0;font-size:12px;color:#6b7280;">Your Booking Reference</p>
+            <p style="margin:0;font-size:24px;font-weight:bold;letter-spacing:2px;color:#166534;">${reference}</p>
+          </div>
+          <p>Keep this reference handy — you can use it to check your booking status anytime at <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/my-bookings">${(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')}/my-bookings</a>.</p>
           <p><strong>Check-in:</strong> ${input.check_in}</p>
           <p><strong>Check-out:</strong> ${input.check_out}</p>
           <p><strong>Guests:</strong> ${input.pax}</p>
@@ -89,7 +101,7 @@ export async function createBooking(formData: FormData) {
       // Also notify admin
       if (process.env.ADMIN_EMAIL) {
         await resend.emails.send({
-          from: 'Kamp Lambingan Bookings <noreply@kamplambingan.com>',
+          from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
           to: process.env.ADMIN_EMAIL,
           subject: `New booking from ${input.guest_name}`,
           html: `
@@ -112,18 +124,82 @@ export async function createBooking(formData: FormData) {
     }
   }
 
-  return { success: true, error: null, id: data.id };
+  return { success: true, error: null, id: data.id, reference };
 }
 
-export async function getBookings() {
+export async function getBookingByReference(reference: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('bookings')
-    .select('*')
+    .select('id, guest_name, package_name, check_in, check_out, pax, status, reference, created_at')
+    .ilike('reference', reference.trim())
+    .single();
+
+  if (error) return { data: null, error: 'No booking found with that reference code.' };
+  return { data, error: null };
+}
+
+export async function getBookingsByEmail(email: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, guest_name, package_name, check_in, check_out, pax, status, created_at')
+    .eq('guest_email', email.toLowerCase().trim())
     .order('created_at', { ascending: false });
 
   if (error) return { data: [], error: error.message };
   return { data: data ?? [], error: null };
+}
+
+export async function getBookings(includeArchived = false) {
+  const supabase = await createClient();
+  let query = supabase
+    .from('bookings')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (!includeArchived) {
+    query = query.eq('is_archived', false);
+  } else {
+    query = query.eq('is_archived', true);
+  }
+
+  const { data, error } = await query;
+  if (error) return { data: [], error: error.message };
+  return { data: data ?? [], error: null };
+}
+
+export async function archiveBooking(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('bookings')
+    .update({ is_archived: true })
+    .eq('id', id);
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/bookings');
+  return { success: true };
+}
+
+export async function archiveAllBookings() {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('bookings')
+    .update({ is_archived: true })
+    .eq('is_archived', false);
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/bookings');
+  return { success: true };
+}
+
+export async function deleteBookingForever(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('bookings')
+    .delete()
+    .eq('id', id);
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/bookings');
+  return { success: true };
 }
 
 export async function getBooking(id: string) {
@@ -162,7 +238,7 @@ export async function updateBookingStatus(id: string, status: 'confirmed' | 'can
 
         if (status === 'confirmed') {
           await resend.emails.send({
-            from: 'Kamp Lambingan <noreply@kamplambingan.com>',
+            from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
             to: booking.guest_email,
             subject: '✅ Your booking is confirmed!',
             html: `
@@ -176,7 +252,7 @@ export async function updateBookingStatus(id: string, status: 'confirmed' | 'can
           });
         } else {
           await resend.emails.send({
-            from: 'Kamp Lambingan <noreply@kamplambingan.com>',
+            from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
             to: booking.guest_email,
             subject: 'Your booking has been cancelled',
             html: `
@@ -206,8 +282,12 @@ export async function uploadReceipt(bookingId: string, file: File): Promise<stri
     .from('receipts')
     .upload(path, file, { upsert: true });
 
-  if (error) return null;
+  if (error) {
+    console.error('[uploadReceipt] Storage upload failed:', error.message);
+    return null;
+  }
 
   const { data } = supabase.storage.from('receipts').getPublicUrl(path);
+  console.log('[uploadReceipt] Uploaded successfully:', data.publicUrl);
   return data.publicUrl;
 }

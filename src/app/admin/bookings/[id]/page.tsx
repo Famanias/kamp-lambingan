@@ -2,6 +2,7 @@ import { getBooking, updateBookingStatus } from '@/actions/bookings';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import BookingActions from '@/components/admin/BookingActions';
+import ArchiveRowButton from '../ArchiveRowButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,7 +63,8 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
         <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wider text-gray-400 mb-3">Payment Receipt</h3>
         {booking.receipt_url ? (
           <div>
-            {booking.receipt_url.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
+            {/* Check path portion only (ignore query params from Supabase signed URLs) */}
+            {new URL(booking.receipt_url).pathname.match(/\.(jpg|jpeg|png|webp|gif)$/i) ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={booking.receipt_url}
@@ -74,7 +76,7 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
                 href={booking.receipt_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-primary hover:underline"
+                className="inline-flex items-center gap-2 text-primary hover:underline text-sm"
               >
                 <span className="material-icons">picture_as_pdf</span>
                 View Receipt PDF
@@ -104,6 +106,18 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
           This booking has been <strong>{booking.status}</strong>. No further action needed.
         </div>
       )}
+
+      {/* Archive / Delete forever */}
+      <div className="flex justify-end gap-3 pt-2">
+        {!booking.is_archived ? (
+          <ArchiveRowButton bookingId={booking.id} />
+        ) : (
+          <>
+            <span className="text-xs text-gray-400 self-center">This booking is archived.</span>
+            <ArchiveRowButton bookingId={booking.id} deleteForever />
+          </>
+        )}
+      </div>
     </div>
   );
 }

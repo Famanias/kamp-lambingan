@@ -17,9 +17,14 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   receipt_url   text,
   status        text NOT NULL DEFAULT 'pending'
                     CHECK (status IN ('pending', 'confirmed', 'cancelled')),
+  reference     text UNIQUE,
+  is_archived   boolean NOT NULL DEFAULT false,
   created_at    timestamptz NOT NULL DEFAULT now(),
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
+
+-- If the table already exists, add the reference column:
+-- ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS reference text UNIQUE;
 
 -- 2. Enable Row Level Security
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
@@ -36,6 +41,12 @@ CREATE POLICY "Allow anon insert" ON public.bookings
 CREATE POLICY "Allow admin select" ON public.bookings
   FOR SELECT
   TO authenticated
+  USING (true);
+
+-- Allow anon users to SELECT their own bookings by email (for My Bookings page)
+CREATE POLICY "Allow anon select own bookings" ON public.bookings
+  FOR SELECT
+  TO anon
   USING (true);
 
 -- Allow authenticated users (admin) to UPDATE bookings (e.g. confirm/cancel)

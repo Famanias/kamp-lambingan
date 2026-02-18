@@ -32,10 +32,18 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
 
             <div className="bg-background-light rounded-lg p-4 text-left text-sm space-y-2 mb-6">
               <h2 className="font-semibold text-gray-900 mb-3">Booking Summary</h2>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Booking ID</span>
-                <span className="text-gray-700 font-mono text-xs">{booking.id}</span>
-              </div>
+
+              {/* Reference code highlight */}
+              {booking.reference && (
+                <div className="flex items-center justify-between bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 mb-3">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-0.5">Booking Reference</p>
+                    <p className="font-mono font-bold text-xl tracking-widest text-primary">{booking.reference}</p>
+                  </div>
+                  <span className="material-icons text-primary text-3xl">confirmation_number</span>
+                </div>
+              )}
+
               <div className="flex justify-between">
                 <span className="text-gray-500">Package</span>
                 <span className="text-gray-900">{booking.package_name}</span>
@@ -66,10 +74,10 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
 
             <div className="flex gap-3">
               <Link
-                href="/"
+                href="/my-bookings"
                 className="flex-1 border border-gray-300 text-gray-700 py-2.5 px-4 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors text-center"
               >
-                Back to Home
+                View My Bookings
               </Link>
               <a
                 href="https://m.me/kamplambingan"
