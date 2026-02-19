@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+// import ReCAPTCHA from 'react-google-recaptcha'; // re-enable when live
 import { createBooking } from '@/actions/bookings';
 import { SiteContent } from '@/lib/types';
 
@@ -15,11 +16,14 @@ export default function BookForm({ content }: BookFormProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // const recaptchaRef = useRef<ReCAPTCHA>(null); // re-enable when live
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  // const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null); // re-enable when live
+  const [paymentType, setPaymentType] = useState<'full' | 'downpayment'>('full');
 
   const packageOptions = content.packages.map((p) => p.name).concat(PACKAGE_NAMES.filter(n => !content.packages.find(p => p.name === n)));
   const uniquePackageOptions = content.packages.map((p) => p.name);
@@ -34,6 +38,14 @@ export default function BookForm({ content }: BookFormProps) {
     pax: '1',
     notes: '',
   });
+
+  // Derived price info (must be after form state)
+  const selectedPackage = content.packages.find(p => p.name === form.packageName);
+  const priceNum = selectedPackage ? parseInt(selectedPackage.price.replace(/[^\d]/g, ''), 10) || 0 : 0;
+  const amountDueNum = paymentType === 'full' ? priceNum : Math.ceil(priceNum / 2);
+  const amountDueFormatted = amountDueNum > 0 ? '\u20B1' + amountDueNum.toLocaleString('en-PH') : '';
+  const downpaymentFormatted = priceNum > 0 ? '\u20B1' + Math.ceil(priceNum / 2).toLocaleString('en-PH') : '';
+  const remainingFormatted = priceNum > 0 ? '\u20B1' + Math.floor(priceNum / 2).toLocaleString('en-PH') : '';
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -81,6 +93,11 @@ export default function BookForm({ content }: BookFormProps) {
       setError('Please upload your payment receipt.');
       return;
     }
+    // reCAPTCHA check disabled until live — re-enable below:
+    // if (!recaptchaToken) {
+    //   setError('Please complete the reCAPTCHA verification.');
+    //   return;
+    // }
     setLoading(true);
     setError(null);
 
@@ -88,11 +105,16 @@ export default function BookForm({ content }: BookFormProps) {
       const formData = new FormData();
       Object.entries(form).forEach(([k, v]) => formData.append(k, v));
       formData.append('receipt', receiptFile);
+      // formData.append('recaptchaToken', recaptchaToken); // re-enable when live
+      formData.append('paymentType', paymentType);
+      if (amountDueFormatted) formData.append('amountDue', amountDueFormatted);
 
       const result = await createBooking(formData);
       if (result.error) {
         setError(result.error);
         setLoading(false);
+        // recaptchaRef.current?.reset(); // re-enable when live
+        // setRecaptchaToken(null); // re-enable when live
         return;
       }
       // Save email so My Bookings page can auto-fill
@@ -185,11 +207,57 @@ export default function BookForm({ content }: BookFormProps) {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
               >
                 <option value="">Select a package</option>
-                {uniquePackageOptions.map((name) => (
-                  <option key={name} value={name}>{name}</option>
+                {content.packages.map((pkg) => (
+                  <option key={pkg.name} value={pkg.name}>{pkg.name} — {pkg.price}</option>
                 ))}
               </select>
             </div>
+
+            {/* Price & payment type card */}
+            {selectedPackage && (
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Package Price</span>
+                  <span className="text-2xl font-bold text-primary">{selectedPackage.price}</span>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Payment Option</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentType('full')}
+                      className={`py-2.5 px-3 rounded-lg border text-sm font-medium transition-colors text-left ${
+                        paymentType === 'full'
+                          ? 'bg-primary text-white border-primary shadow-sm'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-primary/50'
+                      }`}
+                    >
+                      Full Payment
+                      <span className={`block text-xs mt-0.5 ${paymentType === 'full' ? 'opacity-80' : 'text-gray-500'}`}>{selectedPackage.price}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPaymentType('downpayment')}
+                      className={`py-2.5 px-3 rounded-lg border text-sm font-medium transition-colors text-left ${
+                        paymentType === 'downpayment'
+                          ? 'bg-primary text-white border-primary shadow-sm'
+                          : 'bg-white text-gray-700 border-gray-300 hover:border-primary/50'
+                      }`}
+                    >
+                      Downpayment (50%)
+                      <span className={`block text-xs mt-0.5 ${paymentType === 'downpayment' ? 'opacity-80' : 'text-gray-500'}`}>{downpaymentFormatted}</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-primary/10">
+                  <span className="text-sm font-semibold text-gray-700">Amount Due Now</span>
+                  <span className="text-xl font-bold text-gray-900">{amountDueFormatted}</span>
+                </div>
+                {paymentType === 'downpayment' && (
+                  <p className="text-xs text-gray-500">Remaining balance of {remainingFormatted} is payable upon check-in.</p>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Check-in Date *</label>
@@ -260,16 +328,36 @@ export default function BookForm({ content }: BookFormProps) {
             <div className="flex justify-between"><span className="text-gray-500">Check-in</span><span className="text-gray-900">{form.checkIn}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Check-out</span><span className="text-gray-900">{form.checkOut}</span></div>
             <div className="flex justify-between"><span className="text-gray-500">Guests</span><span className="text-gray-900">{form.pax}</span></div>
+            {selectedPackage && (
+              <>
+                <div className="flex justify-between"><span className="text-gray-500">Package Price</span><span className="font-medium text-gray-900">{selectedPackage.price}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Payment Type</span><span className="text-gray-900">{paymentType === 'downpayment' ? 'Downpayment (50%)' : 'Full Payment'}</span></div>
+                <div className="flex justify-between border-t border-gray-200 pt-2 mt-1"><span className="font-semibold text-gray-700">Amount Due Now</span><span className="font-bold text-primary text-base">{amountDueFormatted}</span></div>
+              </>
+            )}
           </div>
-
-          {/* Payment instructions */}
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 text-sm">
             <h3 className="font-semibold text-primary mb-2">Payment Instructions</h3>
+            {amountDueFormatted && (
+              <p className="text-gray-900 font-semibold mb-1">
+                Please send exactly <span className="text-primary">{amountDueFormatted}</span>{paymentType === 'downpayment' ? ' (50% downpayment)' : ' (full payment)'} via GCash or bank transfer.
+              </p>
+            )}
             <p className="text-gray-700 mb-2">
-              Please send your payment via GCash or bank transfer, then upload a screenshot or photo of your receipt below.
+              Upload a screenshot or photo of your receipt below.
             </p>
-            <p className="text-gray-500 text-xs">Your booking will be confirmed once we verify your payment (usually within 24 hours).</p>
+            <p className="text-gray-500 text-xs">Once we verify your payment, we&apos;ll <strong>text or call you</strong> to confirm your booking (usually within 24 hours).</p>
           </div>
+
+          {/* reCAPTCHA — re-enable when live */}
+          {/* <div className="flex justify-center">
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!}
+              onChange={(token) => setRecaptchaToken(token)}
+              onExpired={() => setRecaptchaToken(null)}
+            />
+          </div> */}
 
           {/* File upload */}
           <div>
