@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS public.bookings (
 -- If the table already exists, add the reference column:
 -- ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS reference text UNIQUE;
 
+-- Add payment type and amount columns (run if table already exists):
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS payment_type text DEFAULT 'full' CHECK (payment_type IN ('full', 'downpayment'));
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS amount_due text;
+
 -- 2. Enable Row Level Security
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 

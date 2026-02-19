@@ -27,7 +27,7 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Booking Received!</h1>
             <p className="text-gray-600 mb-6">
-              Thank you, <strong>{booking.guest_name}</strong>! We&apos;ve received your booking request and will confirm it within 24 hours.
+              Thank you, <strong>{booking.guest_name}</strong>! We&apos;ve received your booking request.
             </p>
 
             <div className="bg-background-light rounded-lg p-4 text-left text-sm space-y-2 mb-6">
@@ -61,6 +61,16 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
                 <span className="text-gray-900">{booking.pax}</span>
               </div>
               <div className="flex justify-between">
+                <span className="text-gray-500">Payment Type</span>
+                <span className="text-gray-900">{booking.payment_type === 'downpayment' ? 'Downpayment (50%)' : 'Full Payment'}</span>
+              </div>
+              {booking.amount_due && (
+                <div className="flex justify-between font-semibold border-t border-gray-200 pt-2 mt-1">
+                  <span className="text-gray-700">Amount Due</span>
+                  <span className="text-primary">{booking.amount_due}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
                 <span className="text-gray-500">Status</span>
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 capitalize">
                   {booking.status}
@@ -71,6 +81,26 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
             <p className="text-sm text-gray-500 mb-6">
               A confirmation email has been sent to <strong>{booking.guest_email}</strong>. Check your inbox (and spam folder).
             </p>
+
+            {/* What happens next */}
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left mb-6">
+              <div className="flex items-start gap-3">
+                <span className="material-icons text-amber-500 mt-0.5">phone_in_talk</span>
+                <div>
+                  <p className="text-sm font-semibold text-amber-900 mb-1">We&apos;ll text or call you to confirm</p>
+                  <p className="text-sm text-amber-800">
+                    Our team will reach out to you at <strong>{booking.guest_phone}</strong> within 24 hours to confirm your booking. Make sure your phone is on!
+                  </p>
+                  <a
+                    href={`tel:${content.phone}`}
+                    className="inline-flex items-center gap-1 mt-2 text-xs font-medium text-amber-700 hover:text-amber-900"
+                  >
+                    <span className="material-icons text-base">call</span>
+                    {content.phone}
+                  </a>
+                </div>
+              </div>
+            </div>
 
             <div className="flex gap-3">
               <Link

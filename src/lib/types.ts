@@ -85,4 +85,6 @@ export interface Booking {
   is_archived: boolean;
   created_at: string;
   updated_at: string;
+  payment_type: 'full' | 'downpayment' | null;
+  amount_due: string | null;
 }

@@ -13,6 +13,8 @@ export interface BookingInput {
   pax: number;
   notes?: string;
   receipt_url?: string;
+  payment_type: 'full' | 'downpayment';
+  amount_due?: string;
 }
 
 export async function createBooking(formData: FormData) {
@@ -31,6 +33,8 @@ export async function createBooking(formData: FormData) {
     check_out: formData.get('checkOut') as string,
     pax: parseInt(formData.get('pax') as string, 10) || 1,
     notes: (formData.get('notes') as string) || undefined,
+    payment_type: ((formData.get('paymentType') as string) === 'downpayment' ? 'downpayment' : 'full'),
+    amount_due: (formData.get('amountDue') as string) || undefined,
   };
 
   // Upload receipt first if present
@@ -52,6 +56,8 @@ export async function createBooking(formData: FormData) {
       notes: input.notes ?? null,
       status: 'pending',
       reference,
+      payment_type: input.payment_type,
+      amount_due: input.amount_due ?? null,
     })
     .select('id')
     .single();
@@ -92,7 +98,9 @@ export async function createBooking(formData: FormData) {
           <p><strong>Check-in:</strong> ${input.check_in}</p>
           <p><strong>Check-out:</strong> ${input.check_out}</p>
           <p><strong>Guests:</strong> ${input.pax}</p>
-          <p>Our team will review your payment receipt and confirm your booking shortly. We'll send you another email once confirmed.</p>
+          <p><strong>Payment:</strong> ${input.payment_type === 'downpayment' ? `Downpayment (50%)` : 'Full Payment'}${input.amount_due ? ` — <strong>${input.amount_due}</strong>` : ''}</p>
+          <p>Our team will <strong>text or call you</strong> on <strong>${input.guest_phone}</strong> within 24 hours to confirm your booking. Please keep your phone on!</p>
+          <p>You can also check your booking status anytime at <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/my-bookings">${(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')}/my-bookings</a>.</p>
           <p>Questions? Message us on <a href="https://www.facebook.com/kamplambingan">Facebook</a>.</p>
           <p>— Kamp Lambingan Team</p>
         `,
@@ -113,6 +121,7 @@ export async function createBooking(formData: FormData) {
             <p><strong>Check-in:</strong> ${input.check_in}</p>
             <p><strong>Check-out:</strong> ${input.check_out}</p>
             <p><strong>Guests:</strong> ${input.pax}</p>
+            <p><strong>Payment:</strong> ${input.payment_type === 'downpayment' ? 'Downpayment (50%)' : 'Full Payment'}${input.amount_due ? ` — ${input.amount_due}` : ''}</p>
             ${input.notes ? `<p><strong>Notes:</strong> ${input.notes}</p>` : ''}
             <p><a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/admin/bookings/${data.id}">View booking →</a></p>
           `,

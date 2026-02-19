@@ -54,6 +54,8 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
           <div><span className="text-gray-400 block text-xs">Guests</span><span>{booking.pax}</span></div>
           <div><span className="text-gray-400 block text-xs">Check-in</span><span>{booking.check_in}</span></div>
           <div><span className="text-gray-400 block text-xs">Check-out</span><span>{booking.check_out}</span></div>
+          <div><span className="text-gray-400 block text-xs">Payment Type</span><span className="capitalize font-medium">{booking.payment_type === 'downpayment' ? 'Downpayment (50%)' : 'Full Payment'}</span></div>
+          {booking.amount_due && <div><span className="text-gray-400 block text-xs">Amount Due</span><span className="font-semibold text-primary">{booking.amount_due}</span></div>}
           {booking.notes && <div className="col-span-2"><span className="text-gray-400 block text-xs">Notes</span><span className="text-gray-700">{booking.notes}</span></div>}
         </div>
       </div>
