@@ -51,14 +51,19 @@ const TwitterIcon = () => (
 export default function Footer({ content }: { content: SiteContent }) {
   const year = new Date().getFullYear();
 
-  const socials = [
-    { url: content.facebookUrl, label: 'Facebook', Icon: FacebookIcon },
-    { url: content.instagramUrl, label: 'Instagram', Icon: InstagramIcon },
-    { url: content.tiktokUrl, label: 'TikTok', Icon: TikTokIcon },
-    { url: content.threadsUrl, label: 'Threads', Icon: ThreadsIcon },
-    { url: content.youtubeUrl, label: 'YouTube', Icon: YouTubeIcon },
-    { url: content.twitterUrl, label: 'Twitter / X', Icon: TwitterIcon },
-  ].filter((s) => s.url);
+  const ALL_SOCIALS = [
+    { key: 'facebook', url: content.facebookUrl, label: 'Facebook', Icon: FacebookIcon },
+    { key: 'instagram', url: content.instagramUrl, label: 'Instagram', Icon: InstagramIcon },
+    { key: 'tiktok', url: content.tiktokUrl, label: 'TikTok', Icon: TikTokIcon },
+    { key: 'threads', url: content.threadsUrl, label: 'Threads', Icon: ThreadsIcon },
+    { key: 'youtube', url: content.youtubeUrl, label: 'YouTube', Icon: YouTubeIcon },
+    { key: 'twitter', url: content.twitterUrl, label: 'Twitter / X', Icon: TwitterIcon },
+  ];
+  const order = content.socialLinksOrder ?? ALL_SOCIALS.map((s) => s.key);
+  const socials = order
+    .map((key) => ALL_SOCIALS.find((s) => s.key === key)!)
+    .filter(Boolean)
+    .filter((s) => s.url);
 
   return (
     <footer className="bg-[#0e2018] text-white pt-16 pb-8">

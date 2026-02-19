@@ -76,6 +76,7 @@ export interface SiteContent {
   villasTitle: string;
   villasSubtitle: string;
   villas: Villa[];
+  socialLinksOrder?: string[];
   gallery: string[];
 }
 

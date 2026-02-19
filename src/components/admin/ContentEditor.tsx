@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { saveContent } from '@/actions/content';
 import { SiteContent, Feature, Activity, Package, FaqItem, Review, Villa } from '@/lib/types';
 import IconPicker from './IconPicker';
@@ -25,6 +25,15 @@ const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: 'footer', label: 'Footer', icon: 'web' },
 ];
 
+const SOCIAL_PLATFORMS: { key: string; label: string; field: keyof SiteContent; placeholder: string }[] = [
+  { key: 'facebook', label: 'Facebook', field: 'facebookUrl', placeholder: 'https://www.facebook.com/yourpage' },
+  { key: 'instagram', label: 'Instagram', field: 'instagramUrl', placeholder: 'https://www.instagram.com/yourpage' },
+  { key: 'tiktok', label: 'TikTok', field: 'tiktokUrl', placeholder: 'https://www.tiktok.com/@yourpage' },
+  { key: 'threads', label: 'Threads', field: 'threadsUrl', placeholder: 'https://www.threads.net/@yourpage' },
+  { key: 'youtube', label: 'YouTube', field: 'youtubeUrl', placeholder: 'https://www.youtube.com/@yourchannel' },
+  { key: 'twitter', label: 'Twitter / X', field: 'twitterUrl', placeholder: 'https://twitter.com/yourpage' },
+];
+
 export default function ContentEditor({ initialContent }: ContentEditorProps) {
   const [content, setContent] = useState<SiteContent>(initialContent);
   const [activeSection, setActiveSection] = useState<Section>('hero');
@@ -32,6 +41,8 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [reviewDateDir, setReviewDateDir] = useState<'asc' | 'desc'>('desc');
   const [reviewStarsDir, setReviewStarsDir] = useState<'asc' | 'desc'>('desc');
+  const dragSrc = useRef<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   const handleSave = async () => {
     setSaving(true);
@@ -48,6 +59,22 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
   const updateField = (key: keyof SiteContent, value: unknown) => {
     setContent((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const reorder = <T,>(arr: T[], from: number, to: number): T[] => {
+    const result = [...arr];
+    const [item] = result.splice(from, 1);
+    result.splice(to, 0, item);
+    return result;
+  };
+
+  const onDragStart = (i: number) => { dragSrc.current = i; };
+  const onDragOver = (e: React.DragEvent, i: number) => { e.preventDefault(); setDragOverIdx(i); };
+  const onDragEnd = () => { dragSrc.current = null; setDragOverIdx(null); };
+  const onDrop = <T,>(arr: T[], field: keyof SiteContent, i: number) => {
+    if (dragSrc.current !== null && dragSrc.current !== i) updateField(field, reorder(arr, dragSrc.current, i));
+    dragSrc.current = null;
+    setDragOverIdx(null);
   };
 
   const inputClass = 'w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30';
@@ -148,9 +175,20 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
           {activeSection === 'features' && (
             <div className="space-y-4">
               {content.features.map((f: Feature, i: number) => (
-                <div key={i} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={() => onDragStart(i)}
+                  onDragOver={(e) => onDragOver(e, i)}
+                  onDrop={() => onDrop(content.features, 'features', i)}
+                  onDragEnd={onDragEnd}
+                  className={`rounded-lg p-4 space-y-3 border transition-colors cursor-default ${dragOverIdx === i ? 'border-primary bg-primary/5' : 'border-gray-200'}`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500 uppercase">Feature {i + 1}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="material-icons text-gray-300 cursor-grab active:cursor-grabbing select-none text-base">drag_indicator</span>
+                      <span className="text-xs font-semibold text-gray-500 uppercase">Feature {i + 1}</span>
+                    </div>
                     <button
                       onClick={() => updateField('features', content.features.filter((_, idx) => idx !== i))}
                       className="text-red-400 hover:text-red-600 text-xs"
@@ -180,9 +218,20 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
           {activeSection === 'activities' && (
             <div className="space-y-4">
               {content.activities.map((a: Activity, i: number) => (
-                <div key={i} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={() => onDragStart(i)}
+                  onDragOver={(e) => onDragOver(e, i)}
+                  onDrop={() => onDrop(content.activities, 'activities', i)}
+                  onDragEnd={onDragEnd}
+                  className={`rounded-lg p-4 space-y-3 border transition-colors cursor-default ${dragOverIdx === i ? 'border-primary bg-primary/5' : 'border-gray-200'}`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500 uppercase">Activity {i + 1}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="material-icons text-gray-300 cursor-grab active:cursor-grabbing select-none text-base">drag_indicator</span>
+                      <span className="text-xs font-semibold text-gray-500 uppercase">Activity {i + 1}</span>
+                    </div>
                     <button
                       onClick={() => updateField('activities', content.activities.filter((_, idx) => idx !== i))}
                       className="text-red-400 hover:text-red-600 text-xs"
@@ -212,10 +261,19 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
           {activeSection === 'packages' && (
             <div className="space-y-4">
               {content.packages.map((p: Package, i: number) => (
-                <div key={i} className={`rounded-xl border-2 overflow-hidden ${p.featured ? 'border-primary' : 'border-gray-200'}`}>
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={() => onDragStart(i)}
+                  onDragOver={(e) => onDragOver(e, i)}
+                  onDrop={() => onDrop(content.packages, 'packages', i)}
+                  onDragEnd={onDragEnd}
+                  className={`rounded-xl border-2 overflow-hidden transition-all ${dragOverIdx === i ? 'border-primary ring-2 ring-primary/20' : p.featured ? 'border-primary' : 'border-gray-200'}`}
+                >
                   {/* Card header */}
                   <div className={`flex items-center justify-between px-4 py-3 ${p.featured ? 'bg-primary/10' : 'bg-gray-50'}`}>
                     <div className="flex items-center gap-2">
+                      <span className="material-icons text-gray-300 cursor-grab active:cursor-grabbing select-none text-base">drag_indicator</span>
                       <span className={`material-icons text-base ${p.featured ? 'text-primary' : 'text-gray-400'}`}>inventory_2</span>
                       <span className="font-semibold text-sm text-gray-800">{p.name || `Package ${i + 1}`}</span>
                       {p.featured && (
@@ -287,9 +345,20 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                 </div>
               </div>
               {(content.villas ?? []).map((v: Villa, i: number) => (
-                <div key={i} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={() => onDragStart(i)}
+                  onDragOver={(e) => onDragOver(e, i)}
+                  onDrop={() => onDrop(content.villas ?? [], 'villas', i)}
+                  onDragEnd={onDragEnd}
+                  className={`rounded-lg p-4 space-y-3 border transition-colors cursor-default ${dragOverIdx === i ? 'border-primary bg-primary/5' : 'border-gray-200'}`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500 uppercase">{v.name || `Villa ${i + 1}`}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="material-icons text-gray-300 cursor-grab active:cursor-grabbing select-none text-base">drag_indicator</span>
+                      <span className="text-xs font-semibold text-gray-500 uppercase">{v.name || `Villa ${i + 1}`}</span>
+                    </div>
                     <button
                       onClick={() => updateField('villas', (content.villas ?? []).filter((_, idx) => idx !== i))}
                       className="text-red-400 hover:text-red-600 text-xs"
@@ -397,9 +466,20 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                 </button>
               </div>
               {content.reviews.map((r: Review, i: number) => (
-                <div key={i} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={() => onDragStart(i)}
+                  onDragOver={(e) => onDragOver(e, i)}
+                  onDrop={() => onDrop(content.reviews, 'reviews', i)}
+                  onDragEnd={onDragEnd}
+                  className={`rounded-lg p-4 space-y-3 border transition-colors cursor-default ${dragOverIdx === i ? 'border-primary bg-primary/5' : 'border-gray-200'}`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500 uppercase">Review {i + 1}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="material-icons text-gray-300 cursor-grab active:cursor-grabbing select-none text-base">drag_indicator</span>
+                      <span className="text-xs font-semibold text-gray-500 uppercase">Review {i + 1}</span>
+                    </div>
                     <button
                       onClick={() => updateField('reviews', content.reviews.filter((_, idx) => idx !== i))}
                       className="text-red-400 hover:text-red-600 text-xs"
@@ -461,9 +541,20 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
           {activeSection === 'faq' && (
             <div className="space-y-4">
               {content.faqs.map((f: FaqItem, i: number) => (
-                <div key={i} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={() => onDragStart(i)}
+                  onDragOver={(e) => onDragOver(e, i)}
+                  onDrop={() => onDrop(content.faqs, 'faqs', i)}
+                  onDragEnd={onDragEnd}
+                  className={`rounded-lg p-4 space-y-3 border transition-colors cursor-default ${dragOverIdx === i ? 'border-primary bg-primary/5' : 'border-gray-200'}`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500 uppercase">FAQ {i + 1}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="material-icons text-gray-300 cursor-grab active:cursor-grabbing select-none text-base">drag_indicator</span>
+                      <span className="text-xs font-semibold text-gray-500 uppercase">FAQ {i + 1}</span>
+                    </div>
                     <button
                       onClick={() => updateField('faqs', content.faqs.filter((_, idx) => idx !== i))}
                       className="text-red-400 hover:text-red-600 text-xs"
@@ -492,30 +583,41 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                 <p className="text-xs text-gray-400 mt-1">Short description shown under the logo in the footer.</p>
               </div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider pt-2">Social Media Links</p>
-              <p className="text-xs text-gray-400 -mt-2">Leave any field blank to hide that icon in the footer.</p>
-              <div>
-                <label className={labelClass}>Facebook URL</label>
-                <input className={inputClass} type="url" placeholder="https://www.facebook.com/yourpage" value={content.facebookUrl || ''} onChange={(e) => updateField('facebookUrl', e.target.value)} />
-              </div>
-              <div>
-                <label className={labelClass}>Instagram URL</label>
-                <input className={inputClass} type="url" placeholder="https://www.instagram.com/yourpage" value={content.instagramUrl || ''} onChange={(e) => updateField('instagramUrl', e.target.value)} />
-              </div>
-              <div>
-                <label className={labelClass}>TikTok URL</label>
-                <input className={inputClass} type="url" placeholder="https://www.tiktok.com/@yourpage" value={content.tiktokUrl || ''} onChange={(e) => updateField('tiktokUrl', e.target.value)} />
-              </div>
-              <div>
-                <label className={labelClass}>Threads URL</label>
-                <input className={inputClass} type="url" placeholder="https://www.threads.net/@yourpage" value={content.threadsUrl || ''} onChange={(e) => updateField('threadsUrl', e.target.value)} />
-              </div>
-              <div>
-                <label className={labelClass}>YouTube URL</label>
-                <input className={inputClass} type="url" placeholder="https://www.youtube.com/@yourchannel" value={content.youtubeUrl || ''} onChange={(e) => updateField('youtubeUrl', e.target.value)} />
-              </div>
-              <div>
-                <label className={labelClass}>Twitter / X URL</label>
-                <input className={inputClass} type="url" placeholder="https://twitter.com/yourpage" value={content.twitterUrl || ''} onChange={(e) => updateField('twitterUrl', e.target.value)} />
+              <p className="text-xs text-gray-400 -mt-2">Drag to reorder. Leave any field blank to hide that icon in the footer.</p>
+              <div className="space-y-2">
+                {(content.socialLinksOrder ?? SOCIAL_PLATFORMS.map((p) => p.key))
+                  .map((key) => SOCIAL_PLATFORMS.find((p) => p.key === key)!)
+                  .filter(Boolean)
+                  .map((platform, i) => (
+                    <div
+                      key={platform.key}
+                      draggable
+                      onDragStart={() => onDragStart(i)}
+                      onDragOver={(e) => onDragOver(e, i)}
+                      onDrop={() => {
+                        if (dragSrc.current !== null && dragSrc.current !== i) {
+                          const order = content.socialLinksOrder ?? SOCIAL_PLATFORMS.map((p) => p.key);
+                          updateField('socialLinksOrder', reorder(order, dragSrc.current, i));
+                        }
+                        dragSrc.current = null;
+                        setDragOverIdx(null);
+                      }}
+                      onDragEnd={onDragEnd}
+                      className={`flex items-center gap-2 border rounded-lg p-3 transition-colors cursor-default ${dragOverIdx === i ? 'border-primary bg-primary/5' : 'border-gray-100 bg-gray-50'}`}
+                    >
+                      <span className="material-icons text-gray-300 cursor-grab active:cursor-grabbing select-none text-base flex-shrink-0">drag_indicator</span>
+                      <div className="flex-1">
+                        <label className={labelClass}>{platform.label} URL</label>
+                        <input
+                          className={inputClass}
+                          type="url"
+                          placeholder={platform.placeholder}
+                          value={(content[platform.field] as string) || ''}
+                          onChange={(e) => updateField(platform.field, e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  ))}
               </div>
               <div className="p-4 bg-gray-50 rounded-lg text-xs text-gray-500 space-y-1">
                 <p className="font-semibold text-gray-600 mb-2">Also displayed in the footer (edit in other sections):</p>
@@ -529,9 +631,20 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
             <div className="space-y-4">
               <p className="text-sm text-gray-500">Paste a URL or upload an image. 6 images are displayed on the homepage.</p>
               {(content.gallery ?? []).map((url: string, i: number) => (
-                <div key={i} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                <div
+                  key={i}
+                  draggable
+                  onDragStart={() => onDragStart(i)}
+                  onDragOver={(e) => onDragOver(e, i)}
+                  onDrop={() => onDrop(content.gallery ?? [], 'gallery', i)}
+                  onDragEnd={onDragEnd}
+                  className={`rounded-lg p-3 space-y-2 border transition-colors cursor-default ${dragOverIdx === i ? 'border-primary bg-primary/5' : 'border-gray-200'}`}
+                >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-gray-500 uppercase">Image {i + 1}</span>
+                    <div className="flex items-center gap-1">
+                      <span className="material-icons text-gray-300 cursor-grab active:cursor-grabbing select-none text-base">drag_indicator</span>
+                      <span className="text-xs font-semibold text-gray-500 uppercase">Image {i + 1}</span>
+                    </div>
                     <button
                       onClick={() => updateField('gallery', (content.gallery ?? []).filter((_, idx) => idx !== i))}
                       className="text-red-400 hover:text-red-600"
