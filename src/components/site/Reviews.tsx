@@ -18,7 +18,7 @@ export default function Reviews({ content }: { content: SiteContent }) {
             Don&apos;t just take our word for it. Here is what our guests have to say about their riverside escape at Kamp Lambingan.
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
           {content.reviews.map((review, i) => (
             <div key={i} className="bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-100">
               <div className="flex text-primary mb-3 text-sm">
