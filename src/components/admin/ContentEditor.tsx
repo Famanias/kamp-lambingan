@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { saveContent } from '@/actions/content';
-import { SiteContent, Feature, Activity, Package, FaqItem, Review } from '@/lib/types';
+import { SiteContent, Feature, Activity, Package, FaqItem, Review, Villa } from '@/lib/types';
 import IconPicker from './IconPicker';
 import ImageInput from './ImageInput';
 
@@ -10,7 +10,7 @@ interface ContentEditorProps {
   initialContent: SiteContent;
 }
 
-type Section = 'hero' | 'contact' | 'features' | 'activities' | 'packages' | 'reviews' | 'faq' | 'gallery' | 'footer';
+type Section = 'hero' | 'contact' | 'features' | 'activities' | 'packages' | 'villas' | 'reviews' | 'faq' | 'gallery' | 'footer';
 
 const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: 'hero', label: 'Hero', icon: 'auto_awesome' },
@@ -18,6 +18,7 @@ const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: 'features', label: 'Features', icon: 'star' },
   { key: 'activities', label: 'Activities', icon: 'hiking' },
   { key: 'packages', label: 'Packages', icon: 'inventory' },
+  { key: 'villas', label: 'Villas', icon: 'villa' },
   { key: 'reviews', label: 'Reviews', icon: 'rate_review' },
   { key: 'faq', label: 'FAQ', icon: 'help' },
   { key: 'gallery', label: 'Gallery', icon: 'photo_library' },
@@ -273,6 +274,93 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
             </div>
           )}
 
+          {activeSection === 'villas' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Section Title</label>
+                  <input className={inputClass} value={content.villasTitle ?? ''} onChange={(e) => updateField('villasTitle', e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelClass}>Section Subtitle</label>
+                  <input className={inputClass} value={content.villasSubtitle ?? ''} onChange={(e) => updateField('villasSubtitle', e.target.value)} />
+                </div>
+              </div>
+              {(content.villas ?? []).map((v: Villa, i: number) => (
+                <div key={i} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-500 uppercase">{v.name || `Villa ${i + 1}`}</span>
+                    <button
+                      onClick={() => updateField('villas', (content.villas ?? []).filter((_, idx) => idx !== i))}
+                      className="text-red-400 hover:text-red-600 text-xs"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={labelClass}>Villa Name</label>
+                      <input className={inputClass} value={v.name} onChange={(e) => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, name: e.target.value } : item))} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Location</label>
+                      <input className={inputClass} value={v.location} onChange={(e) => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, location: e.target.value } : item))} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Capacity (number of guests)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      className={inputClass}
+                      value={v.capacity}
+                      onChange={(e) => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, capacity: Number(e.target.value) } : item))}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Activities Available (comma-separated)</label>
+                    <input
+                      className={inputClass}
+                      value={(v.activities ?? []).join(', ')}
+                      onChange={(e) => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, activities: e.target.value.split(',').map((t) => t.trim()).filter(Boolean) } : item))}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Photos</label>
+                    <div className="space-y-2">
+                      {(v.images ?? []).map((img: string, imgIdx: number) => (
+                        <div key={imgIdx} className="flex gap-2 items-start">
+                          <div className="flex-1">
+                            <ImageInput
+                              value={img}
+                              onChange={(newUrl) => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, images: (item.images ?? []).map((im, ii) => ii === imgIdx ? newUrl : im) } : item))}
+                              previewClass="mt-1 h-24 w-full rounded object-cover"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, images: (item.images ?? []).filter((_, ii) => ii !== imgIdx) } : item))}
+                            className="mt-2 text-red-400 hover:text-red-600"
+                          >
+                            <span className="material-icons text-sm">close</span>
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, images: [...(item.images ?? []), ''] } : item))}
+                        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                      >
+                        <span className="material-icons text-sm">add_photo_alternate</span>
+                        Add Photo
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {activeSection === 'reviews' && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-1">
@@ -464,7 +552,7 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
           </div>
 
           {/* Footer add button - only for list sections */}
-          {['features', 'activities', 'packages', 'reviews', 'faq', 'gallery'].includes(activeSection) && (
+          {['features', 'activities', 'packages', 'villas', 'reviews', 'faq', 'gallery'].includes(activeSection) && (
             <div className="flex-shrink-0 border-t border-gray-100 px-5 py-3">
               <button
                 onClick={() => {
@@ -472,13 +560,14 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   if (activeSection === 'activities') updateField('activities', [...content.activities, { icon: 'hiking', title: 'New Activity', description: '' }]);
                   if (activeSection === 'packages') updateField('packages', [...content.packages, { name: 'New Package', price: '₱0', description: '', inclusions: [], featured: false }]);
                   if (activeSection === 'reviews') updateField('reviews', [...content.reviews, { name: 'New Reviewer', text: '', tags: [], date: '' }]);
+                  if (activeSection === 'villas') updateField('villas', [...(content.villas ?? []), { name: 'New Villa', location: '', images: [], capacity: 2, activities: [] }]);
                   if (activeSection === 'faq') updateField('faqs', [...content.faqs, { question: 'New Question?', answer: '' }]);
                   if (activeSection === 'gallery') updateField('gallery', [...(content.gallery ?? []), '']);
                 }}
                 className="flex items-center gap-2 text-primary text-sm font-medium hover:text-primary/80 transition-colors"
               >
                 <span className="material-icons text-sm">add_circle</span>
-                {activeSection === 'faq' ? 'Add FAQ' : activeSection === 'features' ? 'Add Feature' : activeSection === 'activities' ? 'Add Activity' : activeSection === 'packages' ? 'Add Package' : activeSection === 'reviews' ? 'Add Review' : 'Add Gallery Image'}
+                {activeSection === 'faq' ? 'Add FAQ' : activeSection === 'features' ? 'Add Feature' : activeSection === 'activities' ? 'Add Activity' : activeSection === 'packages' ? 'Add Package' : activeSection === 'villas' ? 'Add Villa' : activeSection === 'reviews' ? 'Add Review' : 'Add Gallery Image'}
               </button>
             </div>
           )}

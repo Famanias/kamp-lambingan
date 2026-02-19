@@ -5,6 +5,7 @@ import Features from '@/components/site/Features';
 import Activities from '@/components/site/Activities';
 import Gallery from '@/components/site/Gallery';
 import Packages from '@/components/site/Packages';
+import Villas from '@/components/site/Villas';
 import Reviews from '@/components/site/Reviews';
 import Faq from '@/components/site/Faq';
 import BookSection from '@/components/site/BookSection';
@@ -22,6 +23,7 @@ export default async function Home() {
         <Activities content={content} />
         <Gallery content={content} />
         <Packages content={content} />
+        <Villas content={content} />
         <Reviews content={content} />
         <Faq content={content} />
         <BookSection content={content} />

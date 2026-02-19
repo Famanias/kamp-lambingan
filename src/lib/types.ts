@@ -35,6 +35,14 @@ export interface Review {
   stars?: number;
 }
 
+export interface Villa {
+  name: string;
+  location: string;
+  images: string[];
+  capacity: number;
+  activities: string[];
+}
+
 export interface SiteContent {
   siteTitle: string;
   tagline?: string;
@@ -65,6 +73,9 @@ export interface SiteContent {
   faqSubtitle: string;
   faqs: FaqItem[];
   reviews: Review[];
+  villasTitle: string;
+  villasSubtitle: string;
+  villas: Villa[];
   gallery: string[];
 }
 

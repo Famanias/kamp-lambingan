@@ -71,6 +71,9 @@ export const DEFAULT_CONTENT: SiteContent = {
     { question: 'Where are you located?', answer: 'We are in San Antonio, Zambales, Philippines — approximately 2 hours from Manila via NLEX → SCTEX. Drop a pin to "Kamp Lambingan" on Google Maps for precise directions.' },
     { question: 'How to get there?', answer: 'Via private car: Take NLEX → SCTEX → exit San Antonio, Zambales and follow Google Maps to Kamp Lambingan. Via commute: Take a bus bound for Olongapo or San Antonio at EDSA/Cubao, then hire a tricycle to our location.' },
   ],
+  villasTitle: 'Our Villas',
+  villasSubtitle: 'Each villa is fully air-conditioned and designed for comfort, privacy, and a true glamping experience.',
+  villas: [],
   reviews: [
     { name: 'Rasvie Perez', date: '8h ago', text: 'Peaceful life away from the city. Highly recommended!', tags: ['Romantic atmosphere', 'Spacious rooms', 'Family-friendly', 'Good room service'] },
     { name: 'Michelle Mae', date: 'December 4, 2025', text: 'Very accommodating po ang staffs, makakapaglambingan talaga kayo kasi peaceful sa lugar, may magandang tanawin pa. 😍', tags: ['Family-friendly'] },

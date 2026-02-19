@@ -34,6 +34,22 @@ export async function uploadImage(formData: FormData): Promise<{ url?: string; e
   return { url: `/api/image?path=${encodeURIComponent(path)}` };
 }
 
+export async function listImages(): Promise<{ urls: string[]; error?: string }> {
+  try {
+    const supabase = getServiceClient();
+    const { data, error } = await supabase.storage
+      .from('site-images')
+      .list('uploads', { limit: 500, sortBy: { column: 'created_at', order: 'desc' } });
+    if (error) return { urls: [], error: error.message };
+    const urls = (data ?? [])
+      .filter((f) => f.name && f.name !== '.emptyFolderPlaceholder')
+      .map((f) => `/api/image?path=${encodeURIComponent(`uploads/${f.name}`)}`);
+    return { urls };
+  } catch (e) {
+    return { urls: [], error: String(e) };
+  }
+}
+
 export async function getContent(): Promise<SiteContent> {
   try {
     const supabase = await createClient();
@@ -44,7 +60,10 @@ export async function getContent(): Promise<SiteContent> {
       .single();
 
     if (!error && data?.data && Object.keys(data.data).length > 0) {
-      return data.data as SiteContent;
+      // Merge stored content on top of DEFAULT_CONTENT so any newly added
+      // fields (e.g. villas, villasTitle) always have a fallback value even
+      // when the stored JSON predates those fields.
+      return { ...DEFAULT_CONTENT, ...(data.data as SiteContent) };
     }
   } catch {
     // fall through to default
