@@ -29,6 +29,8 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
   const [activeSection, setActiveSection] = useState<Section>('hero');
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [reviewDateDir, setReviewDateDir] = useState<'asc' | 'desc'>('desc');
+  const [reviewStarsDir, setReviewStarsDir] = useState<'asc' | 'desc'>('desc');
 
   const handleSave = async () => {
     setSaving(true);
@@ -273,6 +275,39 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
           {activeSection === 'reviews' && (
             <div className="space-y-4">
+              <div className="flex items-center gap-2 pb-1">
+                <span className="text-xs text-gray-500 font-medium">Sort by:</span>
+                <button
+                  onClick={() => {
+                    const next = reviewDateDir === 'desc' ? 'asc' : 'desc';
+                    setReviewDateDir(next);
+                    updateField('reviews', [...content.reviews].sort((a, b) => {
+                      const da = a.date ? new Date(a.date).getTime() : 0;
+                      const db = b.date ? new Date(b.date).getTime() : 0;
+                      return next === 'desc' ? db - da : da - db;
+                    }));
+                  }}
+                  className="text-xs px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 flex items-center gap-1 transition-colors"
+                >
+                  <span className="material-icons" style={{ fontSize: 13 }}>calendar_today</span>
+                  Date
+                  <span className="material-icons" style={{ fontSize: 13 }}>{reviewDateDir === 'desc' ? 'arrow_downward' : 'arrow_upward'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const next = reviewStarsDir === 'desc' ? 'asc' : 'desc';
+                    setReviewStarsDir(next);
+                    updateField('reviews', [...content.reviews].sort((a, b) =>
+                      next === 'desc' ? (b.stars ?? 0) - (a.stars ?? 0) : (a.stars ?? 0) - (b.stars ?? 0)
+                    ));
+                  }}
+                  className="text-xs px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 flex items-center gap-1 transition-colors"
+                >
+                  <span className="material-icons" style={{ fontSize: 13 }}>star</span>
+                  Stars
+                  <span className="material-icons" style={{ fontSize: 13 }}>{reviewStarsDir === 'desc' ? 'arrow_downward' : 'arrow_upward'}</span>
+                </button>
+              </div>
               {content.reviews.map((r: Review, i: number) => (
                 <div key={i} className="border border-gray-200 rounded-lg p-4 space-y-3">
                   <div className="flex items-center justify-between">
@@ -292,6 +327,30 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                     <div>
                       <label className={labelClass}>Date</label>
                       <input className={inputClass} value={r.date || ''} onChange={(e) => updateField('reviews', content.reviews.map((item, idx) => idx === i ? { ...item, date: e.target.value } : item))} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={labelClass}>Stars</label>
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => updateField('reviews', content.reviews.map((item, idx) => idx === i ? { ...item, stars: star } : item))}
+                          className={`text-2xl leading-none transition-colors ${star <= (r.stars ?? 0) ? 'text-yellow-400' : 'text-gray-300'} hover:text-yellow-400`}
+                        >
+                          ★
+                        </button>
+                      ))}
+                      {(r.stars ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => updateField('reviews', content.reviews.map((item, idx) => idx === i ? { ...item, stars: 0 } : item))}
+                          className="text-xs text-gray-400 hover:text-gray-600 ml-1 self-center"
+                        >
+                          Clear
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div>

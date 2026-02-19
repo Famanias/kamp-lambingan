@@ -18,7 +18,7 @@ export default function BookSection({ content }: { content: SiteContent }) {
           {/* Contact Info */}
           <div className="space-y-6">
             {/* Location */}
-            <div className="flex items-start gap-4 p-5 bg-background-light rounded-lg">
+            {/* <div className="flex items-start gap-4 p-5 bg-background-light rounded-lg">
               <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                 <span className="material-icons text-primary">location_on</span>
               </div>
@@ -26,7 +26,7 @@ export default function BookSection({ content }: { content: SiteContent }) {
                 <h4 className="font-semibold text-gray-900 mb-1">Location</h4>
                 <p className="text-gray-600 text-sm">{content.address || 'Floridablanca, Pampanga, Philippines'}</p>
               </div>
-            </div>
+            </div> */}
 
             {/* Phone */}
             <div className="flex items-start gap-4 p-5 bg-background-light rounded-lg">

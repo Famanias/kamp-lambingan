@@ -32,6 +32,7 @@ export interface Review {
   date: string;
   text: string;
   tags: string[];
+  stars?: number;
 }
 
 export interface SiteContent {
