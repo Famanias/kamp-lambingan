@@ -357,7 +357,7 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1">
                       <span className="material-icons text-gray-300 cursor-grab active:cursor-grabbing select-none text-base">drag_indicator</span>
-                      <span className="text-xs font-semibold text-gray-500 uppercase">{v.name || `Villa ${i + 1}`}</span>
+                      <span className="text-xs font-semibold text-gray-500 uppercase">Villa {i + 1}</span>
                     </div>
                     <button
                       onClick={() => updateField('villas', (content.villas ?? []).filter((_, idx) => idx !== i))}
