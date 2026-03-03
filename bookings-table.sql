@@ -30,6 +30,22 @@ CREATE TABLE IF NOT EXISTS public.bookings (
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS payment_type text DEFAULT 'full' CHECK (payment_type IN ('full', 'downpayment'));
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS amount_due text;
 
+-- Add archived_at to track when a booking was archived (for retention countdown):
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+
+-- App settings table (key/value store for admin-configurable settings)
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  key   text PRIMARY KEY,
+  value text NOT NULL
+);
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow admin all on app_settings" ON public.app_settings
+  USING (true) WITH CHECK (true);
+-- Default: archive retention = 7 days
+INSERT INTO public.app_settings (key, value)
+  VALUES ('archive_retention_days', '7')
+  ON CONFLICT (key) DO NOTHING;
+
 -- 2. Enable Row Level Security
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 

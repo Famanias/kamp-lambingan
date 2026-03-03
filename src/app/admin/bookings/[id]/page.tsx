@@ -35,6 +35,17 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
         </span>
       </div>
 
+      {/* Booking Reference */}
+      <div className="bg-primary/5 border border-primary/20 rounded-lg px-4 py-3 flex items-center gap-3">
+        <span className="material-icons text-primary">confirmation_number</span>
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Booking Reference</p>
+          <p className="font-mono font-bold text-primary tracking-widest text-lg">
+            {booking.reference ?? 'N/A'}
+          </p>
+        </div>
+      </div>
+
       {/* Guest info */}
       <div className="bg-white rounded-xl shadow-sm p-5 space-y-3">
         <h3 className="font-semibold text-gray-900 text-sm uppercase tracking-wider text-gray-400 mb-3">Guest Information</h3>
