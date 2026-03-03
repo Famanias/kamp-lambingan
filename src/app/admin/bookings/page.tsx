@@ -1,4 +1,4 @@
-import { getBookings } from '@/actions/bookings';
+import { getBookings, getArchiveRetentionDays } from '@/actions/bookings';
 import Link from 'next/link';
 import BookingsTable from './BookingsTable';
 
@@ -13,7 +13,10 @@ export default async function AdminBookingsPage({
   const { status: filterStatus, view } = await searchParams;
   const isArchiveView = view === 'archive';
 
-  const { data: allBookings } = await getBookings(isArchiveView);
+  const [{ data: allBookings }, retentionDays] = await Promise.all([
+    getBookings(isArchiveView),
+    getArchiveRetentionDays(),
+  ]);
 
   const bookings = filterStatus && !isArchiveView
     ? allBookings.filter((b) => b.status === filterStatus)
@@ -37,6 +40,17 @@ export default async function AdminBookingsPage({
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-xl font-bold text-gray-900">Bookings</h2>
+        <Link
+          href={isArchiveView ? '/admin/bookings' : '/admin/bookings?view=archive'}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            isArchiveView
+              ? 'bg-primary text-white'
+              : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+          }`}
+        >
+          <span className="material-icons text-base">inventory_2</span>
+          {isArchiveView ? 'Exit Archive' : 'View Archive'}
+        </Link>
       </div>
 
       {/* Filter tabs — only show on main view */}
@@ -64,7 +78,7 @@ export default async function AdminBookingsPage({
         </p>
       )}
 
-      <BookingsTable bookings={bookings} isArchiveView={isArchiveView} />
+      <BookingsTable bookings={bookings} isArchiveView={isArchiveView} retentionDays={retentionDays} />
     </div>
   );
 }

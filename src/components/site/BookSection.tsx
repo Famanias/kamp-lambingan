@@ -24,7 +24,7 @@ export default function BookSection({ content }: { content: SiteContent }) {
               </div>
               <div>
                 <h4 className="font-semibold text-gray-900 mb-1">Location</h4>
-                <p className="text-gray-600 text-sm">{content.address || 'Floridablanca, Pampanga, Philippines'}</p>
+                <p className="text-gray-600 text-sm">{content.address || 'San Antonio, Zambales, Philippines'}</p>
               </div>
             </div> */}
 

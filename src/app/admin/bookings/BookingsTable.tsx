@@ -4,8 +4,15 @@ import { useEffect, useRef, useState } from 'react';
 import type { Booking } from '@/lib/types';
 import ArchiveRowButton from './ArchiveRowButton';
 import BookingActions from '@/components/admin/BookingActions';
-import { archiveBookings, archiveAllBookings } from '@/actions/bookings';
-import Link from 'next/link';
+import {
+  archiveBookings,
+  archiveAllBookings,
+  restoreBookings,
+  restoreAllBookings,
+  deleteAllArchived,
+  deleteBookings,
+  setArchiveRetentionDays,
+} from '@/actions/bookings';
 import { useRouter } from 'next/navigation';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -17,18 +24,31 @@ const STATUS_COLORS: Record<string, string> = {
 interface Props {
   bookings: Booking[];
   isArchiveView: boolean;
+  retentionDays: number;
 }
 
-export default function BookingsTable({ bookings, isArchiveView }: Props) {
+function getDaysRemaining(archivedAt: string | null, retentionDays: number): number {
+  if (!archivedAt) return retentionDays;
+  const expiresAt = new Date(archivedAt).getTime() + retentionDays * 24 * 60 * 60 * 1000;
+  return Math.max(0, Math.ceil((expiresAt - Date.now()) / (24 * 60 * 60 * 1000)));
+}
+
+export default function BookingsTable({ bookings, isArchiveView, retentionDays }: Props) {
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [archiving, setArchiving] = useState(false);
+  const [restoring, setRestoring] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [retentionEdit, setRetentionEdit] = useState(retentionDays);
+  const [savingRetention, setSavingRetention] = useState(false);
   const selectAllRef = useRef<HTMLInputElement>(null);
 
   const selectedBooking = bookings.find((b) => b.id === selectedId) ?? null;
   const allChecked = bookings.length > 0 && bookings.every((b) => checkedIds.has(b.id));
   const someChecked = checkedIds.size > 0 && !allChecked;
+
+  useEffect(() => { setRetentionEdit(retentionDays); }, [retentionDays]);
 
   // Keep indeterminate state synced
   useEffect(() => {
@@ -47,20 +67,46 @@ export default function BookingsTable({ bookings, isArchiveView }: Props) {
     });
   }
 
-  async function handleArchiveSelected() {
-    if (!window.confirm(`Archive ${checkedIds.size} selected booking(s)? They will be hidden from the main list.`)) return;
+  async function handleArchive() {
+    const isAll = allChecked;
+    const label = isAll ? 'all bookings' : `${checkedIds.size} selected booking(s)`;
+    if (!window.confirm(`Archive ${label}? They will be hidden from the main list.`)) return;
     setArchiving(true);
-    await archiveBookings(Array.from(checkedIds));
+    if (isAll) await archiveAllBookings();
+    else await archiveBookings(Array.from(checkedIds));
     setCheckedIds(new Set());
     setArchiving(false);
     router.refresh();
   }
 
-  async function handleArchiveAll() {
-    if (!window.confirm('Archive all bookings? They will be moved to the Archive section and hidden from the main list.')) return;
-    setArchiving(true);
-    await archiveAllBookings();
-    setArchiving(false);
+  async function handleRestore() {
+    const isAll = allChecked;
+    const label = isAll ? 'all archived bookings' : `${checkedIds.size} selected booking(s)`;
+    if (!window.confirm(`Restore ${label} back to the main list?`)) return;
+    setRestoring(true);
+    if (isAll) await restoreAllBookings();
+    else await restoreBookings(Array.from(checkedIds));
+    setCheckedIds(new Set());
+    setRestoring(false);
+    router.refresh();
+  }
+
+  async function handleDelete() {
+    const isAll = allChecked;
+    const label = isAll ? 'ALL archived bookings' : `${checkedIds.size} selected booking(s)`;
+    if (!window.confirm(`Permanently delete ${label}? This cannot be undone.`)) return;
+    setDeleting(true);
+    if (isAll) await deleteAllArchived();
+    else await deleteBookings(Array.from(checkedIds));
+    setCheckedIds(new Set());
+    setDeleting(false);
+    router.refresh();
+  }
+
+  async function handleSaveRetention() {
+    setSavingRetention(true);
+    await setArchiveRetentionDays(retentionEdit);
+    setSavingRetention(false);
     router.refresh();
   }
 
@@ -82,73 +128,93 @@ export default function BookingsTable({ bookings, isArchiveView }: Props) {
 
   return (
     <>
-      {/* Action bar */}
+      {/* ── Archive retention banner ── */}
+      {isArchiveView && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2 text-amber-700">
+            <span className="material-icons text-base">timer</span>
+            <span className="text-sm font-medium">Archived bookings are permanently deleted after</span>
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={retentionEdit}
+              onChange={(e) => setRetentionEdit(Number(e.target.value))}
+              className="w-16 border border-amber-300 rounded-lg px-2 py-1 text-sm text-center font-semibold text-amber-800 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+            />
+            <span className="text-sm text-amber-700 font-medium">days</span>
+            <button
+              onClick={handleSaveRetention}
+              disabled={savingRetention || retentionEdit === retentionDays}
+              className="px-3 py-1 bg-amber-600 text-white rounded-lg text-xs font-semibold hover:bg-amber-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {savingRetention ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Action bar ── */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="text-sm text-gray-500">
-          {!isArchiveView && checkedIds.size > 0 && (
-            <span>{checkedIds.size} selected</span>
-          )}
+          {checkedIds.size > 0 && <span>{checkedIds.size} selected</span>}
         </div>
         <div className="flex items-center gap-2">
           {!isArchiveView && (
-            <>
-              <Link
-                href="/admin/bookings?view=archive"
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                <span className="material-icons text-base">inventory_2</span>
-                View Archive
-              </Link>
-              <button
-                onClick={handleArchiveAll}
-                disabled={archiving}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                <span className="material-icons text-base">archive</span>
-                {archiving ? 'Archiving...' : 'Archive All'}
-              </button>
-              <button
-                onClick={handleArchiveSelected}
-                disabled={checkedIds.size === 0 || archiving}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                <span className="material-icons text-base">archive</span>
-                {checkedIds.size > 0 ? `Archive (${checkedIds.size})` : 'Archive'}
-              </button>
-            </>
+            <button
+              onClick={handleArchive}
+              disabled={checkedIds.size === 0 || archiving}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <span className="material-icons text-base">archive</span>
+              {archiving ? 'Archiving…' : allChecked ? 'Archive All' : checkedIds.size > 0 ? `Archive (${checkedIds.size})` : 'Archive'}
+            </button>
           )}
           {isArchiveView && (
-            <Link
-              href="/admin/bookings"
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white transition-colors"
-            >
-              <span className="material-icons text-base">inventory_2</span>
-              Exit Archive
-            </Link>
+            <>
+              <button
+                onClick={handleDelete}
+                disabled={checkedIds.size === 0 || deleting}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <span className="material-icons text-base">delete_forever</span>
+                {deleting ? 'Deleting…' : allChecked ? 'Delete All' : checkedIds.size > 0 ? `Delete (${checkedIds.size})` : 'Delete'}
+              </button>
+              <button
+                onClick={handleRestore}
+                disabled={checkedIds.size === 0 || restoring}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <span className="material-icons text-base">restore</span>
+                {restoring ? 'Restoring…' : allChecked ? 'Restore All' : checkedIds.size > 0 ? `Restore (${checkedIds.size})` : 'Restore'}
+              </button>
+            </>
           )}
         </div>
       </div>
 
-      {/* Table */}
+      {/* ── Table ── */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         {bookings.length === 0 ? (
-          <div className="p-10 text-center text-gray-400">No bookings found.</div>
+          <div className="p-10 text-center text-gray-400">
+            {isArchiveView ? 'No archived bookings.' : 'No bookings found.'}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-gray-500 border-b border-gray-100 text-xs uppercase">
-                  {!isArchiveView && (
-                    <th className="pl-5 pr-2 py-3 w-8" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        ref={selectAllRef}
-                        type="checkbox"
-                        checked={allChecked}
-                        onChange={toggleAll}
-                        className="w-4 h-4 accent-primary cursor-pointer"
-                      />
-                    </th>
-                  )}
+                  <th className="pl-5 pr-2 py-3 w-8" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      checked={allChecked}
+                      onChange={toggleAll}
+                      className="w-4 h-4 accent-primary cursor-pointer"
+                    />
+                  </th>
                   <th className="px-5 py-3">Guest</th>
                   <th className="px-5 py-3">Reference</th>
                   <th className="px-5 py-3">Package</th>
@@ -156,19 +222,23 @@ export default function BookingsTable({ bookings, isArchiveView }: Props) {
                   <th className="px-5 py-3">Guests</th>
                   <th className="px-5 py-3">Status</th>
                   <th className="px-5 py-3">Submitted</th>
+                  {isArchiveView && <th className="px-5 py-3">Expires In</th>}
                   <th className="px-5 py-3"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {bookings.map((b) => (
-                  <tr
-                    key={b.id}
-                    className={`hover:bg-gray-50 cursor-pointer transition-colors ${
-                      checkedIds.has(b.id) ? 'bg-primary/5' : ''
-                    }`}
-                    onClick={() => setSelectedId(b.id)}
-                  >
-                    {!isArchiveView && (
+                {bookings.map((b) => {
+                  const daysLeft = isArchiveView ? getDaysRemaining(b.archived_at, retentionDays) : null;
+                  const isExpiringSoon = daysLeft !== null && daysLeft <= 2;
+
+                  return (
+                    <tr
+                      key={b.id}
+                      className={`hover:bg-gray-50 cursor-pointer transition-colors ${
+                        checkedIds.has(b.id) ? 'bg-primary/5' : ''
+                      }`}
+                      onClick={() => setSelectedId(b.id)}
+                    >
                       <td className="pl-5 pr-2 py-3 w-8" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
@@ -177,60 +247,82 @@ export default function BookingsTable({ bookings, isArchiveView }: Props) {
                           className="w-4 h-4 accent-primary cursor-pointer"
                         />
                       </td>
-                    )}
-                    <td className="px-5 py-3">
-                      <p className="font-medium text-gray-900">{b.guest_name}</p>
-                      <p className="text-gray-400 text-xs">{b.guest_email}</p>
-                      <p className="text-gray-400 text-xs">{b.guest_phone}</p>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600">
-                        {b.reference ?? '—'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-gray-700">{b.package_name}</td>
-                    <td className="px-5 py-3 text-gray-700 whitespace-nowrap">
-                      <p>{b.check_in}</p>
-                      <p className="text-gray-400 text-xs">to {b.check_out}</p>
-                    </td>
-                    <td className="px-5 py-3 text-gray-700">{b.pax}</td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[b.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {b.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">
-                      {new Date(b.created_at).toLocaleDateString('en-PH', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
-                    </td>
-                    <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center gap-3">
-                        {!isArchiveView && (
-                          <>
-                            <button
-                              onClick={() => setSelectedId(b.id)}
-                              className="text-primary hover:underline text-xs font-medium"
-                            >
-                              View →
-                            </button>
-                            <ArchiveRowButton bookingId={b.id} />
-                          </>
-                        )}
-                        {isArchiveView && <ArchiveRowButton bookingId={b.id} deleteForever />}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      <td className="px-5 py-3">
+                        <p className="font-medium text-gray-900">{b.guest_name}</p>
+                        <p className="text-gray-400 text-xs">{b.guest_email}</p>
+                        <p className="text-gray-400 text-xs">{b.guest_phone}</p>
+                      </td>
+                      <td className="px-5 py-3">
+                        <span className="font-mono text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-600">
+                          {b.reference ?? '—'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-gray-700">{b.package_name}</td>
+                      <td className="px-5 py-3 text-gray-700 whitespace-nowrap">
+                        <p>{b.check_in}</p>
+                        <p className="text-gray-400 text-xs">to {b.check_out}</p>
+                      </td>
+                      <td className="px-5 py-3 text-gray-700">{b.pax}</td>
+                      <td className="px-5 py-3">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${STATUS_COLORS[b.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {b.status}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-gray-500 text-xs whitespace-nowrap">
+                        {new Date(b.created_at).toLocaleDateString('en-PH', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </td>
+                      {isArchiveView && (
+                        <td className="px-5 py-3 whitespace-nowrap">
+                          {daysLeft === 0 ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                              <span className="material-icons text-xs">delete_forever</span>
+                              Today
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              isExpiringSoon ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'
+                            }`}>
+                              <span className="material-icons text-xs">hourglass_bottom</span>
+                              {daysLeft}d
+                            </span>
+                          )}
+                        </td>
+                      )}
+                      <td className="px-5 py-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-3">
+                          {!isArchiveView && (
+                            <>
+                              <button
+                                onClick={() => setSelectedId(b.id)}
+                                className="text-primary hover:underline text-xs font-medium"
+                              >
+                                View →
+                              </button>
+                              <ArchiveRowButton bookingId={b.id} />
+                            </>
+                          )}
+                          {isArchiveView && (
+                            <>
+                              <RestoreButton bookingId={b.id} />
+                              <ArchiveRowButton bookingId={b.id} deleteForever />
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* Booking Detail Dialog */}
+      {/* ── Booking Detail Dialog ── */}
       {selectedBooking && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
@@ -376,7 +468,6 @@ export default function BookingsTable({ bookings, isArchiveView }: Props) {
               {selectedBooking.status === 'pending' && (
                 <BookingActions bookingId={selectedBooking.id} />
               )}
-
               {selectedBooking.status !== 'pending' && (
                 <div className="bg-gray-100 rounded-xl p-4 text-sm text-gray-500 text-center">
                   This booking has been <strong>{selectedBooking.status}</strong>. No further action needed.
@@ -387,5 +478,31 @@ export default function BookingsTable({ bookings, isArchiveView }: Props) {
         </div>
       )}
     </>
+  );
+}
+
+// ── Inline Restore button ─────────────────────────────────────
+function RestoreButton({ bookingId }: { bookingId: string }) {
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleClick = async () => {
+    setLoading(true);
+    const { restoreBooking } = await import('@/actions/bookings');
+    await restoreBooking(bookingId);
+    setLoading(false);
+    router.refresh();
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      className="text-primary hover:text-primary/70 disabled:opacity-50 flex items-center gap-0.5 text-xs font-medium"
+      title="Restore booking"
+    >
+      <span className="material-icons text-base">{loading ? 'hourglass_empty' : 'restore'}</span>
+      {loading ? '' : 'Restore'}
+    </button>
   );
 }

@@ -2,12 +2,12 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Kamp Lambingan – Riverside Camping in Pampanga',
+  title: 'Kamp Lambingan – Riverside Camping in Zambales',
   description:
-    'Escape to Kamp Lambingan, your premium riverside camping destination in Floridablanca, Pampanga. Book your stay online.',
+    'Escape to Kamp Lambingan, your premium riverside camping destination in San Antonio, Zambales. Book your stay online.',
   openGraph: {
-    title: 'Kamp Lambingan – Riverside Camping in Pampanga',
-    description: 'Premium riverside camping in Floridablanca, Pampanga.',
+    title: 'Kamp Lambingan – Riverside Camping in Zambales',
+    description: 'Premium riverside camping in San Antonio, Zambales.',
     url: 'https://kamplambingan.com',
     siteName: 'Kamp Lambingan',
     locale: 'en_PH',

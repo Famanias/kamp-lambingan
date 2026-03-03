@@ -182,7 +182,7 @@ export async function archiveBooking(id: string) {
   const supabase = await createClient();
   const { error } = await supabase
     .from('bookings')
-    .update({ is_archived: true })
+    .update({ is_archived: true, archived_at: new Date().toISOString() })
     .eq('id', id);
   if (error) return { success: false, error: error.message };
   revalidatePath('/admin/bookings');
@@ -194,7 +194,7 @@ export async function archiveBookings(ids: string[]) {
   const supabase = await createClient();
   const { error } = await supabase
     .from('bookings')
-    .update({ is_archived: true })
+    .update({ is_archived: true, archived_at: new Date().toISOString() })
     .in('id', ids);
   if (error) return { success: false, error: error.message };
   revalidatePath('/admin/bookings');
@@ -205,8 +205,85 @@ export async function archiveAllBookings() {
   const supabase = await createClient();
   const { error } = await supabase
     .from('bookings')
-    .update({ is_archived: true })
+    .update({ is_archived: true, archived_at: new Date().toISOString() })
     .eq('is_archived', false);
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/bookings');
+  return { success: true };
+}
+
+export async function restoreBooking(id: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('bookings')
+    .update({ is_archived: false, archived_at: null })
+    .eq('id', id);
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/bookings');
+  return { success: true };
+}
+
+export async function restoreBookings(ids: string[]) {
+  if (!ids.length) return { success: true };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('bookings')
+    .update({ is_archived: false, archived_at: null })
+    .in('id', ids);
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/bookings');
+  return { success: true };
+}
+
+export async function restoreAllBookings() {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('bookings')
+    .update({ is_archived: false, archived_at: null })
+    .eq('is_archived', true);
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/bookings');
+  return { success: true };
+}
+
+export async function deleteAllArchived() {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('bookings')
+    .delete()
+    .eq('is_archived', true);
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/bookings');
+  return { success: true };
+}
+
+export async function deleteBookings(ids: string[]) {
+  if (!ids.length) return { success: true };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('bookings')
+    .delete()
+    .in('id', ids);
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/bookings');
+  return { success: true };
+}
+
+export async function getArchiveRetentionDays(): Promise<number> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'archive_retention_days')
+    .single();
+  return data ? parseInt(data.value, 10) || 7 : 7;
+}
+
+export async function setArchiveRetentionDays(days: number) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert({ key: 'archive_retention_days', value: String(Math.max(1, days)) });
   if (error) return { success: false, error: error.message };
   revalidatePath('/admin/bookings');
   return { success: true };
