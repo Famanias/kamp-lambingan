@@ -189,6 +189,18 @@ export async function archiveBooking(id: string) {
   return { success: true };
 }
 
+export async function archiveBookings(ids: string[]) {
+  if (!ids.length) return { success: true };
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('bookings')
+    .update({ is_archived: true })
+    .in('id', ids);
+  if (error) return { success: false, error: error.message };
+  revalidatePath('/admin/bookings');
+  return { success: true };
+}
+
 export async function archiveAllBookings() {
   const supabase = await createClient();
   const { error } = await supabase
