@@ -340,9 +340,20 @@ export default function BookForm({ content }: BookFormProps) {
             <h3 className="font-semibold text-primary mb-2">Payment Instructions</h3>
             {amountDueFormatted && (
               <p className="text-gray-900 font-semibold mb-1">
-                Please send exactly <span className="text-primary">{amountDueFormatted}</span>{paymentType === 'downpayment' ? ' (50% downpayment)' : ' (full payment)'} via GCash or bank transfer.
+                Please send exactly <span className="text-primary">{amountDueFormatted}</span>{paymentType === 'downpayment' ? ' (50% downpayment)' : ' (full payment)'} via GCash.
               </p>
             )}
+            {content.gcashQrImage ? (
+              <div className="my-3 flex flex-col items-center gap-2">
+                <p className="text-xs text-gray-600 font-medium text-center">Scan the QR code below to pay via GCash:</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={content.gcashQrImage}
+                  alt="GCash QR Code"
+                  className="w-96 h-144 object-contain border border-gray-200 rounded-lg bg-white p-2"
+                />
+              </div>
+            ) : null}
             <p className="text-gray-700 mb-2">
               Upload a screenshot or photo of your receipt below.
             </p>

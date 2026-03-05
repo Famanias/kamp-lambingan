@@ -10,7 +10,7 @@ interface ContentEditorProps {
   initialContent: SiteContent;
 }
 
-type Section = 'hero' | 'contact' | 'features' | 'activities' | 'packages' | 'villas' | 'reviews' | 'faq' | 'gallery' | 'footer';
+type Section = 'hero' | 'contact' | 'features' | 'activities' | 'packages' | 'villas' | 'reviews' | 'faq' | 'gallery' | 'payment' | 'footer';
 
 const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: 'hero', label: 'Hero', icon: 'auto_awesome' },
@@ -22,6 +22,7 @@ const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: 'reviews', label: 'Reviews', icon: 'rate_review' },
   { key: 'faq', label: 'FAQ', icon: 'help' },
   { key: 'gallery', label: 'Gallery', icon: 'photo_library' },
+  { key: 'payment', label: 'Payment', icon: 'qr_code_2' },
   { key: 'footer', label: 'Footer', icon: 'web' },
 ];
 
@@ -624,6 +625,32 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                 <p>• <strong>Site Title</strong> — Hero section</p>
                 <p>• <strong>Phone &amp; Email</strong> — Contact section</p>
               </div>
+            </div>
+          )}
+
+          {activeSection === 'payment' && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">
+                  Upload your GCash QR code here. It will be displayed in the booking form so guests can scan and pay directly.
+                </p>
+              </div>
+              <ImageInput
+                label="GCash QR Code Image"
+                value={content.gcashQrImage ?? ''}
+                onChange={(url) => updateField('gcashQrImage', url)}
+                previewClass="mt-2 h-64 w-64 mx-auto rounded object-contain border border-gray-200 p-2"
+              />
+              {content.gcashQrImage && (
+                <button
+                  type="button"
+                  onClick={() => updateField('gcashQrImage', '')}
+                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors"
+                >
+                  <span className="material-icons text-sm">delete_outline</span>
+                  Remove QR image
+                </button>
+              )}
             </div>
           )}
 
