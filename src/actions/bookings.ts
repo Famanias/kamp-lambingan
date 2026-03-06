@@ -300,6 +300,17 @@ export async function deleteBookingForever(id: string) {
   return { success: true };
 }
 
+export async function getAllBookingsForAnalytics() {
+  const supabase = await createClient();
+  // Fetch ALL bookings including archived for cumulative analytics
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('id, status, package_name, payment_type, amount_due, created_at, check_in')
+    .order('created_at', { ascending: true });
+  if (error) return { data: [], error: error.message };
+  return { data: data ?? [], error: null };
+}
+
 export async function getBooking(id: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
