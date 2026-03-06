@@ -75,6 +75,7 @@ export const DEFAULT_CONTENT: SiteContent = {
   villasSubtitle: 'Each villa is fully air-conditioned and designed for comfort, privacy, and a true glamping experience.',
   villas: [],
   socialLinksOrder: ['facebook', 'instagram', 'tiktok', 'threads', 'youtube', 'twitter'],
+  gcashQrImage: '',
   reviews: [
     { name: 'Rasvie Perez', date: '8h ago', text: 'Peaceful life away from the city. Highly recommended!', tags: ['Romantic atmosphere', 'Spacious rooms', 'Family-friendly', 'Good room service'] },
     { name: 'Michelle Mae', date: 'December 4, 2025', text: 'Very accommodating po ang staffs, makakapaglambingan talaga kayo kasi peaceful sa lugar, may magandang tanawin pa. 😍', tags: ['Family-friendly'] },

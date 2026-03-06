@@ -78,6 +78,7 @@ export interface SiteContent {
   villas: Villa[];
   socialLinksOrder?: string[];
   gallery: string[];
+  gcashQrImage?: string;
 }
 
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';

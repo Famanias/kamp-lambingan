@@ -46,6 +46,42 @@ INSERT INTO public.app_settings (key, value)
   VALUES ('archive_retention_days', '7')
   ON CONFLICT (key) DO NOTHING;
 
+-- ============================================================
+-- Site content table (stores all editable site content as JSONB,
+-- including gcashQrImage for the GCash QR code shown in the booking form)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.site_content (
+  id         integer PRIMARY KEY,
+  data       jsonb NOT NULL DEFAULT '{}'::jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.site_content ENABLE ROW LEVEL SECURITY;
+
+-- Allow anyone (anon / guests) to READ site content (needed to display QR on booking form)
+CREATE POLICY "Allow public read site_content" ON public.site_content
+  FOR SELECT
+  TO anon
+  USING (true);
+
+-- Allow authenticated users (admin) to read site content
+CREATE POLICY "Allow admin read site_content" ON public.site_content
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- Allow authenticated users (admin) to INSERT / UPDATE site content
+CREATE POLICY "Allow admin upsert site_content" ON public.site_content
+  FOR ALL
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+-- Seed the default row so getContent() always finds id = 1
+INSERT INTO public.site_content (id, data)
+  VALUES (1, '{}'::jsonb)
+  ON CONFLICT (id) DO NOTHING;
+
 -- 2. Enable Row Level Security
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 
@@ -127,7 +163,45 @@ CREATE POLICY "Allow public read receipts" ON storage.objects
   USING (bucket_id = 'receipts');
 
 -- ============================================================
+-- Storage: Create the "site-images" bucket
+-- Used for: hero image, gallery images, villa photos,
+--           and the GCash QR code uploaded via Admin → Payment
+-- ============================================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('site-images', 'site-images', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Allow authenticated users (admin) to upload site images
+CREATE POLICY "Allow admin upload to site-images" ON storage.objects
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (bucket_id = 'site-images');
+
+-- Allow authenticated users (admin) to update / replace site images
+CREATE POLICY "Allow admin update site-images" ON storage.objects
+  FOR UPDATE
+  TO authenticated
+  USING (bucket_id = 'site-images')
+  WITH CHECK (bucket_id = 'site-images');
+
+-- Allow authenticated users (admin) to delete site images
+CREATE POLICY "Allow admin delete site-images" ON storage.objects
+  FOR DELETE
+  TO authenticated
+  USING (bucket_id = 'site-images');
+
+-- Allow authenticated users to read site images (used by /api/image proxy)
+CREATE POLICY "Allow admin read site-images" ON storage.objects
+  FOR SELECT
+  TO authenticated
+  USING (bucket_id = 'site-images');
+
+-- Note: The /api/image route uses the service-role key to generate signed URLs,
+-- so anon users do NOT need direct read access to this private bucket.
+
+-- ============================================================
 -- Verify
 -- ============================================================
 SELECT 'bookings table created' AS status;
-SELECT tablename, rowsecurity FROM pg_tables WHERE tablename = 'bookings';
+SELECT tablename, rowsecurity FROM pg_tables WHERE tablename IN ('bookings', 'site_content', 'app_settings');
+SELECT id FROM storage.buckets WHERE id IN ('receipts', 'site-images');
