@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   title: 'Kamp Lambingan – Riverside Camping in Zambales',
@@ -36,6 +37,7 @@ export default function RootLayout({
       </head>
       <body className="bg-background-light font-[Plus_Jakarta_Sans,sans-serif] text-gray-800 antialiased" suppressHydrationWarning>
         {children}
+        <Analytics />
       </body>
     </html>
   );
