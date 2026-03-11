@@ -1,17 +1,111 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { SiteContent, Villa } from '@/lib/types';
+
+function Lightbox({ images, startIndex, onClose }: { images: string[]; startIndex: number; onClose: () => void }) {
+  const [current, setCurrent] = useState(startIndex);
+
+  const prev = useCallback(() => setCurrent((c) => (c - 1 + images.length) % images.length), [images.length]);
+  const next = useCallback(() => setCurrent((c) => (c + 1) % images.length), [images.length]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+      if (e.key === 'ArrowLeft') prev();
+      if (e.key === 'ArrowRight') next();
+    };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [onClose, prev, next]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+      onClick={onClose}
+    >
+      {/* Close */}
+      <button
+        className="absolute top-4 right-4 text-white bg-white/10 hover:bg-white/20 rounded-full w-10 h-10 flex items-center justify-center transition-colors z-10"
+        onClick={onClose}
+        aria-label="Close"
+      >
+        <span className="material-icons">close</span>
+      </button>
+
+      {/* Counter */}
+      {images.length > 1 && (
+        <span className="absolute top-4 left-1/2 -translate-x-1/2 text-white/70 text-sm">
+          {current + 1} / {images.length}
+        </span>
+      )}
+
+      {/* Prev */}
+      {images.length > 1 && (
+        <button
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-white bg-white/10 hover:bg-white/20 rounded-full w-11 h-11 flex items-center justify-center transition-colors z-10"
+          onClick={(e) => { e.stopPropagation(); prev(); }}
+          aria-label="Previous"
+        >
+          <span className="material-icons">chevron_left</span>
+        </button>
+      )}
+
+      {/* Image */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={images[current]}
+        alt={`Photo ${current + 1}`}
+        className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl select-none"
+        onClick={(e) => e.stopPropagation()}
+      />
+
+      {/* Next */}
+      {images.length > 1 && (
+        <button
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-white bg-white/10 hover:bg-white/20 rounded-full w-11 h-11 flex items-center justify-center transition-colors z-10"
+          onClick={(e) => { e.stopPropagation(); next(); }}
+          aria-label="Next"
+        >
+          <span className="material-icons">chevron_right</span>
+        </button>
+      )}
+
+      {/* Dot strip */}
+      {images.length > 1 && (
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2">
+          {images.map((_, i) => (
+            <button
+              key={i}
+              onClick={(e) => { e.stopPropagation(); setCurrent(i); }}
+              className={`w-2 h-2 rounded-full transition-colors ${i === current ? 'bg-white' : 'bg-white/40'}`}
+              aria-label={`Go to photo ${i + 1}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function VillaCard({ villa }: { villa: Villa }) {
   const [current, setCurrent] = useState(0);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const images = villa.images?.filter(Boolean) ?? [];
   const hasImages = images.length > 0;
 
-  const prev = () => setCurrent((c) => (c - 1 + images.length) % images.length);
-  const next = () => setCurrent((c) => (c + 1) % images.length);
+  const prev = (e: React.MouseEvent) => { e.stopPropagation(); setCurrent((c) => (c - 1 + images.length) % images.length); };
+  const next = (e: React.MouseEvent) => { e.stopPropagation(); setCurrent((c) => (c + 1) % images.length); };
 
   return (
+    <>
+      {lightboxIndex !== null && (
+        <Lightbox images={images} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+      )}
     <div className="bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-shadow flex flex-col">
       {/* Carousel */}
       <div className="relative h-56 bg-gray-100 flex-shrink-0">
@@ -21,7 +115,8 @@ function VillaCard({ villa }: { villa: Villa }) {
             <img
               src={images[current]}
               alt={`${villa.name} photo ${current + 1}`}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover cursor-zoom-in"
+              onClick={() => setLightboxIndex(current)}
             />
             {images.length > 1 && (
               <>
@@ -44,7 +139,7 @@ function VillaCard({ villa }: { villa: Villa }) {
                   {images.map((_, i) => (
                     <button
                       key={i}
-                      onClick={() => setCurrent(i)}
+                      onClick={(e) => { e.stopPropagation(); setCurrent(i); }}
                       className={`w-1.5 h-1.5 rounded-full transition-colors ${i === current ? 'bg-white' : 'bg-white/50'}`}
                       aria-label={`Go to photo ${i + 1}`}
                     />
@@ -58,6 +153,10 @@ function VillaCard({ villa }: { villa: Villa }) {
                 {current + 1} / {images.length}
               </span>
             )}
+            {/* Expand hint */}
+            <span className="absolute bottom-2 right-2 bg-black/40 text-white rounded-full w-7 h-7 flex items-center justify-center pointer-events-none">
+              <span className="material-icons text-sm">fullscreen</span>
+            </span>
           </>
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -102,6 +201,7 @@ function VillaCard({ villa }: { villa: Villa }) {
         )}
       </div>
     </div>
+    </>
   );
 }
 
