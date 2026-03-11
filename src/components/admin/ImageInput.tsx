@@ -6,6 +6,7 @@ import { uploadImage, listImages } from '@/actions/content';
 interface ImageInputProps {
   value: string;
   onChange: (url: string) => void;
+  onMultiple?: (urls: string[]) => void;
   label?: string;
   previewClass?: string;
 }
@@ -112,9 +113,10 @@ function ImagePickerModal({ onSelect, onClose }: { onSelect: (url: string) => vo
   );
 }
 
-export default function ImageInput({ value, onChange, label, previewClass = 'mt-2 h-24 w-full rounded object-cover' }: ImageInputProps) {
+export default function ImageInput({ value, onChange, onMultiple, label, previewClass = 'mt-2 h-24 w-full rounded object-cover' }: ImageInputProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -123,18 +125,40 @@ export default function ImageInput({ value, onChange, label, previewClass = 'mt-
   const labelClass = 'block text-xs font-medium text-gray-600 mb-1';
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
     setError(null);
     setUploading(true);
-    const fd = new FormData();
-    fd.append('file', file);
-    const result = await uploadImage(fd);
-    setUploading(false);
-    if (result.error) {
-      setError(result.error);
-    } else if (result.url) {
-      onChange(result.url);
+
+    if (onMultiple && files.length > 1) {
+      // Multi-upload: upload all in parallel and return all URLs
+      setUploadProgress({ done: 0, total: files.length });
+      const results = await Promise.all(
+        files.map(async (file) => {
+          const fd = new FormData();
+          fd.append('file', file);
+          const res = await uploadImage(fd);
+          setUploadProgress((p) => p ? { ...p, done: p.done + 1 } : p);
+          return res;
+        })
+      );
+      setUploading(false);
+      setUploadProgress(null);
+      const errors = results.filter((r) => r.error).map((r) => r.error);
+      if (errors.length) setError(errors[0]!);
+      const urls = results.map((r) => r.url).filter(Boolean) as string[];
+      if (urls.length) onMultiple(urls);
+    } else {
+      // Single upload
+      const fd = new FormData();
+      fd.append('file', files[0]);
+      const result = await uploadImage(fd);
+      setUploading(false);
+      if (result.error) {
+        setError(result.error);
+      } else if (result.url) {
+        onChange(result.url);
+      }
     }
     // reset so the same file can be re-selected
     e.target.value = '';
@@ -166,15 +190,19 @@ export default function ImageInput({ value, onChange, label, previewClass = 'mt-
         </button>
         <button
           type="button"
-          title="Upload image"
+          title={onMultiple ? 'Upload one or more images' : 'Upload image'}
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
           className="flex-shrink-0 flex items-center gap-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 border border-gray-300 rounded-lg text-xs font-medium text-gray-600 disabled:opacity-50 transition-colors"
         >
           <span className="material-icons text-base">{uploading ? 'hourglass_empty' : 'upload'}</span>
-          {uploading ? 'Uploading…' : 'Upload'}
+          {uploading
+            ? uploadProgress
+              ? `${uploadProgress.done}/${uploadProgress.total}…`
+              : 'Uploading…'
+            : onMultiple ? 'Upload' : 'Upload'}
         </button>
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+        <input ref={fileRef} type="file" accept="image/*" multiple={!!onMultiple} className="hidden" onChange={handleFile} />
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}
       {value && (

@@ -417,14 +417,13 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                           </button>
                         </div>
                       ))}
-                      <button
-                        type="button"
-                        onClick={() => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, images: [...(item.images ?? []), ''] } : item))}
-                        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
-                      >
-                        <span className="material-icons text-sm">add_photo_alternate</span>
-                        Add Photo
-                      </button>
+                      <ImageInput
+                        value=""
+                        onChange={(url) => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, images: [...(item.images ?? []), url] } : item))}
+                        onMultiple={(urls) => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, images: [...(item.images ?? []), ...urls] } : item))}
+                        label="Add Photos (select multiple to batch upload)"
+                        previewClass="hidden"
+                      />
                     </div>
                   </div>
                 </div>
