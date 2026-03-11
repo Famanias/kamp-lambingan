@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { saveContent } from '@/actions/content';
+import { saveContent, uploadImage } from '@/actions/content';
 import { SiteContent, Feature, Activity, Package, FaqItem, Review, Villa } from '@/lib/types';
 import IconPicker from './IconPicker';
 import ImageInput from './ImageInput';
@@ -44,6 +44,9 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
   const [reviewStarsDir, setReviewStarsDir] = useState<'asc' | 'desc'>('desc');
   const dragSrc = useRef<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const galleryFileRef = useRef<HTMLInputElement>(null);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryUploadProgress, setGalleryUploadProgress] = useState<{ done: number; total: number } | null>(null);
 
   const handleSave = async () => {
     setSaving(true);
@@ -656,7 +659,45 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
           {activeSection === 'gallery' && (
             <div className="space-y-4">
-              <p className="text-sm text-gray-500">Paste a URL or upload an image. 6 images are displayed on the homepage.</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500">Paste a URL or upload an image. 6 images are displayed on the homepage.</p>
+                <button
+                  type="button"
+                  disabled={galleryUploading}
+                  onClick={() => galleryFileRef.current?.click()}
+                  className="flex-shrink-0 flex items-center gap-1 px-3 py-2 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded-lg text-xs font-medium text-primary disabled:opacity-50 transition-colors"
+                >
+                  <span className="material-icons text-base">{galleryUploading ? 'hourglass_empty' : 'upload'}</span>
+                  {galleryUploading && galleryUploadProgress ? `Uploading ${galleryUploadProgress.done}/${galleryUploadProgress.total}…` : 'Upload Images'}
+                </button>
+                <input
+                  ref={galleryFileRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files ?? []);
+                    if (!files.length) return;
+                    setGalleryUploading(true);
+                    setGalleryUploadProgress({ done: 0, total: files.length });
+                    const results = await Promise.all(
+                      files.map(async (file) => {
+                        const fd = new FormData();
+                        fd.append('file', file);
+                        const res = await uploadImage(fd);
+                        setGalleryUploadProgress((p) => p ? { ...p, done: p.done + 1 } : p);
+                        return res;
+                      })
+                    );
+                    setGalleryUploading(false);
+                    setGalleryUploadProgress(null);
+                    const urls = results.map((r) => r.url).filter(Boolean) as string[];
+                    if (urls.length) updateField('gallery', [...(content.gallery ?? []), ...urls]);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
               {(content.gallery ?? []).map((url: string, i: number) => (
                 <div
                   key={i}
