@@ -388,11 +388,12 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Activities Available (comma-separated)</label>
+                    <label className={labelClass}>What's Included? (comma-separated)</label>
                     <input
                       className={inputClass}
                       value={(v.activities ?? []).join(', ')}
-                      onChange={(e) => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, activities: e.target.value.split(',').map((t) => t.trim()).filter(Boolean) } : item))}
+                      onChange={(e) => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, activities: e.target.value.split(',').map((t) => t.trim()) } : item))}
+                      onBlur={(e) => updateField('villas', (content.villas ?? []).map((item, idx) => idx === i ? { ...item, activities: e.target.value.split(',').map((t) => t.trim()).filter(Boolean) } : item))}
                     />
                   </div>
                   <div>

@@ -87,7 +87,7 @@ function VillaCard({ villa }: { villa: Villa }) {
         {/* Activities */}
         {villa.activities && villa.activities.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Available Activities</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">What&apos;s Included?</p>
             <div className="flex flex-wrap gap-1.5">
               {villa.activities.map((act, i) => (
                 <span
