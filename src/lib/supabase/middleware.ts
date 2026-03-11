@@ -27,7 +27,14 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+
+  // If the stored refresh token is no longer valid, sign out to clear the
+  // stale cookies so the error doesn't repeat on every subsequent request.
+  if (authError && (authError as any).code === 'refresh_token_not_found') {
+    await supabase.auth.signOut();
+  }
 
   // Protect /admin/* routes (except /admin/login)
   if (

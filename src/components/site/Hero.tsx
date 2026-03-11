@@ -10,7 +10,7 @@ export default function Hero({ content }: { content: SiteContent }) {
         <img
           alt="Riverside glamping villa at sunset with warm lighting"
           className="w-full h-full object-cover"
-          src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnj2QB_fyQTs7LqKB3R2SqfUJLaLTei7vxyj83yFBp_ozZ0yPzXx-ILsBq766xaoDjUfGFGhIBtMc5qop2MRcM4K_foZfDMdTE4WTFs1h8J5ljpowXavQqdhqVqeB95_Lh3GXS8ve-WjSjec8fKZ2aSy-zkdW8byUM2NZomYtEYkCkDRqLvMQ-SfI-kgLuEZwRjjwEyrP4lLV91OLGL4DzKiK_ezUc5MkXID8aW0NyRVM_0xHrgV552zd-uCtkQRY2fZ5AjlljktsJ"
+          src={content.heroImage || "https://lh3.googleusercontent.com/aida-public/AB6AXuDnj2QB_fyQTs7LqKB3R2SqfUJLaLTei7vxyj83yFBp_ozZ0yPzXx-ILsBq766xaoDjUfGFGhIBtMc5qop2MRcM4K_foZfDMdTE4WTFs1h8J5ljpowXavQqdhqVqeB95_Lh3GXS8ve-WjSjec8fKZ2aSy-zkdW8byUM2NZomYtEYkCkDRqLvMQ-SfI-kgLuEZwRjjwEyrP4lLV91OLGL4DzKiK_ezUc5MkXID8aW0NyRVM_0xHrgV552zd-uCtkQRY2fZ5AjlljktsJ"}
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-[#f6f8f7]" />
       </div>
