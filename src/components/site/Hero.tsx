@@ -35,7 +35,7 @@ export default function Hero({ content }: { content: SiteContent }) {
           </Link>
           <a
             href="#gallery"
-            className="w-full sm:w-auto px-8 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/30 text-lg font-bold rounded-lg transition-all flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-8 py-4 bg-white hover:bg-gray-100 text-gray-900 text-lg font-bold rounded-lg shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2"
           >
             <span className="material-icons text-xl">photo_library</span>
             Explore Gallery
