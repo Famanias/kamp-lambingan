@@ -660,7 +660,7 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
           {activeSection === 'gallery' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-gray-500">Paste a URL or upload an image. 6 images are displayed on the homepage.</p>
+                <p className="text-sm text-gray-500">Paste a URL or upload an image. All images are displayed in the gallery.</p>
                 <button
                   type="button"
                   disabled={galleryUploading}

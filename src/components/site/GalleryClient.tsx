@@ -37,7 +37,7 @@ export default function GalleryClient({ images }: GalleryClientProps) {
   return (
     <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {images.slice(0, 6).map((src, i) => (
+        {images.map((src, i) => (
           <button
             key={i}
             onClick={() => setLightboxIndex(i)}
