@@ -84,7 +84,7 @@ ${villas}
 ${faqs || '  No FAQs listed yet.'}
 
 === BOOKING INSTRUCTIONS ===
-Guests can book directly on this website:
+Guests can book directly on this website:x 
 1. Click "Book Now" or go to the Book section.
 2. Fill in their details and choose a package.
 3. Select full payment or 50% downpayment and proceed to step 2.

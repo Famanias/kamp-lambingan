@@ -308,6 +308,16 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                         <input className={inputClass} value={p.price} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, price: e.target.value } : item))} />
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelClass}>Category Label <span className="text-gray-400 font-normal normal-case">(shown on all cards)</span></label>
+                        <input className={inputClass} value={p.label ?? ''} placeholder="e.g. Best Weekend" onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, label: e.target.value } : item))} />
+                      </div>
+                      <div>
+                        <label className={`${labelClass} ${!p.featured ? 'opacity-40' : ''}`}>Featured Badge <span className="text-gray-400 font-normal normal-case">(pill badge on featured card only)</span></label>
+                        <input className={`${inputClass} ${!p.featured ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} value={p.sublabel ?? ''} placeholder="e.g. Most Popular" disabled={!p.featured} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, sublabel: e.target.value } : item))} />
+                      </div>
+                    </div>
                     <div>
                       <label className={labelClass}>Description</label>
                       <textarea className={inputClass} rows={2} value={p.description} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, description: e.target.value } : item))} />

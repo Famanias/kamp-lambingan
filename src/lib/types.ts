@@ -14,6 +14,7 @@ export interface Activity {
 
 export interface Package {
   label?: string;
+  sublabel?: string;
   name: string;
   price: string;
   description?: string;

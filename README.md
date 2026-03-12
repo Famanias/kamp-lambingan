@@ -92,27 +92,7 @@ cd kamp-lambingan
 npm install
 ```
 
-### 2. Configure environment variables
-
-Create a `.env.local` file in the project root:
-
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-GROQ_API_KEY=gsk_your-groq-api-key
-```
-
-### 3. Set up the database
-
-Run the SQL in `bookings-table.sql` in the Supabase SQL Editor. This creates:
-- `bookings` table with RLS policies
-- `site_content` table (stores all CMS content as JSONB, including the GCash QR image URL)
-- `app_settings` table (archive retention days)
-- `receipts` storage bucket (public)
-- `site-images` storage bucket (private, served via signed URL proxy)
-
-### 4. Run the dev server
+### 2. Run the dev server
 
 ```bash
 npm run dev

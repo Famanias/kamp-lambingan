@@ -14,12 +14,15 @@ export default function Packages({ content }: { content: SiteContent }) {
           {content.packages.map((pkg, i) => (
             pkg.featured ? (
               <div key={i} className="bg-primary rounded-2xl p-8 shadow-xl shadow-primary/30 relative">
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-white text-primary text-xs font-extrabold px-4 py-1 rounded-full shadow-md uppercase tracking-wider whitespace-nowrap">
-                  {pkg.label}
-                </div>
-                <div className="text-xs font-bold text-white/70 uppercase tracking-widest mb-2">Best Weekend</div>
+                {pkg.sublabel && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-white text-primary text-xs font-extrabold px-4 py-1 rounded-full shadow-md uppercase tracking-wider whitespace-nowrap">
+                    {pkg.sublabel}
+                  </div>
+                )}
+                <div className="text-xs font-bold text-white/70 uppercase tracking-widest mb-2">{pkg.label}</div>
                 <h4 className="text-xl font-extrabold text-white mb-1">{pkg.name}</h4>
-                <div className="text-3xl font-extrabold text-white mb-6">{pkg.price}</div>
+                <div className="text-3xl font-extrabold text-white mb-2">{pkg.price}</div>
+                {pkg.description && <p className="text-sm text-white/70 mb-6">{pkg.description}</p>}
                 <ul className="space-y-3 mb-8 text-sm text-white/90">
                   {(pkg.features ?? []).map((f, j) => (
                     <li key={j} className="flex items-center gap-2">
@@ -35,7 +38,8 @@ export default function Packages({ content }: { content: SiteContent }) {
               <div key={i} className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm hover:shadow-md transition-shadow">
                 <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">{pkg.label}</div>
                 <h4 className="text-xl font-extrabold text-gray-900 mb-1">{pkg.name}</h4>
-                <div className="text-3xl font-extrabold text-gray-900 mb-6">{pkg.price}</div>
+                <div className="text-3xl font-extrabold text-gray-900 mb-2">{pkg.price}</div>
+                {pkg.description && <p className="text-sm text-gray-500 mb-6">{pkg.description}</p>}
                 <ul className="space-y-3 mb-8 text-sm text-gray-600">
                   {(pkg.features ?? []).map((f, j) => (
                     <li key={j} className="flex items-center gap-2">

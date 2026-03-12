@@ -47,7 +47,8 @@ export const DEFAULT_CONTENT: SiteContent = {
       features: ['Air conditioned room', 'River access & dipping pool', 'In-room amenities', 'Comprehensive concierge'],
     },
     {
-      label: 'Most Popular',
+      label: 'Best Weekend',
+      sublabel: 'Most Popular',
       name: 'Weekend Glamping',
       price: '₱5,500',
       featured: true,
