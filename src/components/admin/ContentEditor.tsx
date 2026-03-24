@@ -644,26 +644,58 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
           {activeSection === 'payment' && (
             <div className="space-y-4">
               <div>
-                <p className="text-sm text-gray-600 mb-1">
-                  Upload your GCash QR code here. It will be displayed in the booking form so guests can scan and pay directly.
+                <p className="text-sm text-gray-600 mb-4">
+                  Configure GCash payment options. Guests can either scan the QR code or enter the GCash details manually.
                 </p>
               </div>
-              <ImageInput
-                label="GCash QR Code Image"
-                value={content.gcashQrImage ?? ''}
-                onChange={(url) => updateField('gcashQrImage', url)}
-                previewClass="mt-2 h-64 w-64 mx-auto rounded object-contain border border-gray-200 p-2"
-              />
-              {content.gcashQrImage && (
-                <button
-                  type="button"
-                  onClick={() => updateField('gcashQrImage', '')}
-                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors"
-                >
-                  <span className="material-icons text-sm">delete_outline</span>
-                  Remove QR image
-                </button>
-              )}
+
+              {/* QR Code Section */}
+              <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <h4 className="font-semibold text-sm text-gray-900">GCash QR Code</h4>
+                <p className="text-xs text-gray-500">Upload your GCash QR code. Guests can scan this to pay directly.</p>
+                <ImageInput
+                  label="QR Code Image"
+                  value={content.gcashQrImage ?? ''}
+                  onChange={(url) => updateField('gcashQrImage', url)}
+                  previewClass="mt-2 h-48 w-48 mx-auto rounded object-contain border border-gray-200 p-2"
+                />
+                {content.gcashQrImage && (
+                  <button
+                    type="button"
+                    onClick={() => updateField('gcashQrImage', '')}
+                    className="flex items-center gap-1 text-xs text-red-500 hover:text-red-700 transition-colors"
+                  >
+                    <span className="material-icons text-sm">delete_outline</span>
+                    Remove QR image
+                  </button>
+                )}
+              </div>
+
+              {/* Manual Entry Section */}
+              <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+                <h4 className="font-semibold text-sm text-gray-900">Alternative GCash Details</h4>
+                <p className="text-xs text-gray-500">Provide GCash number and account holder name for guests who cannot scan the QR code.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelClass}>GCash Number <span className="text-gray-400 font-normal">(e.g. 09123456789)</span></label>
+                    <input
+                      className={inputClass}
+                      placeholder="09123456789"
+                      value={content.gcashNumber ?? ''}
+                      onChange={(e) => updateField('gcashNumber', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Account Holder Name</label>
+                    <input
+                      className={inputClass}
+                      placeholder="Juan Dela Cruz"
+                      value={content.gcashName ?? ''}
+                      onChange={(e) => updateField('gcashName', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

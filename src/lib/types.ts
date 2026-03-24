@@ -80,6 +80,8 @@ export interface SiteContent {
   socialLinksOrder?: string[];
   gallery: string[];
   gcashQrImage?: string;
+  gcashNumber?: string;
+  gcashName?: string;
 }
 
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';

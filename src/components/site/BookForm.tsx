@@ -339,22 +339,47 @@ export default function BookForm({ content }: BookFormProps) {
           <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 text-sm">
             <h3 className="font-semibold text-primary mb-2">Payment Instructions</h3>
             {amountDueFormatted && (
-              <p className="text-gray-900 font-semibold mb-1">
+              <p className="text-gray-900 font-semibold mb-3">
                 Please send exactly <span className="text-primary">{amountDueFormatted}</span>{paymentType === 'downpayment' ? ' (50% downpayment)' : ' (full payment)'} via GCash.
               </p>
             )}
-            {content.gcashQrImage ? (
-              <div className="my-3 flex flex-col items-center gap-2">
-                <p className="text-xs text-gray-600 font-medium text-center">Scan the QR code below to pay via GCash:</p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={content.gcashQrImage}
-                  alt="GCash QR Code"
-                  className="w-96 h-144 object-contain border border-gray-200 rounded-lg bg-white p-2"
-                />
-              </div>
-            ) : null}
-            <p className="text-gray-700 mb-2">
+            
+            {/* Payment Options */}
+            <div className="space-y-4">
+              {/* QR Code Option */}
+              {content.gcashQrImage && (
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-xs text-gray-600 font-medium text-center">Option 1: Scan QR Code</p>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={content.gcashQrImage}
+                    alt="GCash QR Code"
+                    className="w-80 h-80 object-contain border border-gray-200 rounded-lg bg-white p-2"
+                  />
+                </div>
+              )}
+              
+              {/* Manual Entry Option */}
+              {content.gcashNumber && content.gcashName && (
+                <div className="border-t border-primary/10 pt-3">
+                  <p className="text-xs text-gray-600 font-medium text-center mb-2">
+                    {content.gcashQrImage ? 'Option 2: Manual Transfer' : 'Send via GCash'}
+                  </p>
+                  <div className="bg-white rounded border border-gray-200 p-3 space-y-2">
+                    <div>
+                      <span className="text-xs uppercase tracking-wide text-gray-500 block">GCash Number</span>
+                      <span className="text-base font-mono font-semibold text-gray-900">{content.gcashNumber}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs uppercase tracking-wide text-gray-500 block">Account Holder</span>
+                      <span className="text-sm font-semibold text-gray-900">{content.gcashName}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <p className="text-gray-700 mb-2 mt-3">
               Upload a screenshot or photo of your receipt below.
             </p>
             <p className="text-gray-500 text-xs">Once we verify your payment, we&apos;ll <strong>text or call you</strong> to confirm your booking (usually within 24 hours).</p>
