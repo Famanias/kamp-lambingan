@@ -1,8 +1,19 @@
 ﻿'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, useInView, type Variants } from 'framer-motion';
 import { SiteContent, Villa } from '@/lib/types';
 import { ChevronLeft, ChevronRight, X, Maximize2, Users, MapPin } from 'lucide-react';
+import SectionBackground from './SectionBackground';
+
+const CONTAINER: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.12, delayChildren: 0.05 } },
+};
+const ITEM: Variants = {
+  hidden: { opacity: 0, y: 28 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] } },
+};
 
 function Lightbox({ images, startIndex, onClose }: { images: string[]; startIndex: number; onClose: () => void }) {
   const [current, setCurrent] = useState(startIndex);
@@ -180,37 +191,57 @@ function VillaCard({ villa }: { villa: Villa }) {
 
 export default function Villas({ content }: { content: SiteContent }) {
   const villas = content.villas ?? [];
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: '-8% 0px' });
+
   if (villas.length === 0) return null;
 
   return (
     <section
-      className="py-24"
+      className="py-24 relative overflow-hidden"
       id="villas"
       style={{ background: 'linear-gradient(to bottom, #f5f9f7, #eaf5f0)' }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-14">
-          <div className="nature-glass inline-flex rounded-full px-4 py-1.5 mb-5">
-            <span className="font-body font-medium text-xs text-primary tracking-wider uppercase">
-              Accommodations
-            </span>
-          </div>
-          <h2
-            className="font-heading italic mb-4"
-            style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', lineHeight: 0.95, letterSpacing: '-0.02em', color: '#152033' }}
-          >
-            {content.villasTitle || 'Our Private Villas'}
-          </h2>
-          <p className="font-body font-light text-sm max-w-md mx-auto leading-relaxed" style={{ color: '#15203380' }}>
-            Each villa is uniquely designed for privacy, comfort, and a deep connection with nature.
-          </p>
-        </div>
+      <SectionBackground
+        src={content.villasBackground}
+        overlayStyle={{
+          background:
+            'linear-gradient(to bottom, rgba(167,243,208,0.45) 0%, rgba(209,250,229,0.4) 50%, rgba(245,249,247,0.95) 100%)',
+        }}
+      />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {villas.map((villa, i) => (
-            <VillaCard key={i} villa={villa} />
-          ))}
-        </div>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative" style={{ zIndex: 1 }}>
+        <motion.div
+          ref={ref}
+          variants={CONTAINER}
+          initial="hidden"
+          animate={inView ? 'visible' : 'hidden'}
+        >
+          <motion.div variants={ITEM} className="text-center mb-14">
+            <div className="nature-glass inline-flex rounded-full px-4 py-1.5 mb-5">
+              <span className="font-body font-medium text-xs text-primary tracking-wider uppercase">
+                Accommodations
+              </span>
+            </div>
+            <h2
+              className="font-heading italic mb-4"
+              style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', lineHeight: 0.95, letterSpacing: '-0.02em', color: '#152033' }}
+            >
+              {content.villasTitle || 'Our Private Villas'}
+            </h2>
+            <p className="font-body font-light text-sm max-w-md mx-auto leading-relaxed" style={{ color: '#15203380' }}>
+              Each villa is uniquely designed for privacy, comfort, and a deep connection with nature.
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {villas.map((villa, i) => (
+              <motion.div key={i} variants={ITEM}>
+                <VillaCard villa={villa} />
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
       </div>
     </section>
   );

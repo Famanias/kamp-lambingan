@@ -1,5 +1,19 @@
+'use client';
+
+import { useRef } from 'react';
+import { motion, useInView, type Variants } from 'framer-motion';
 import { SiteContent } from '@/lib/types';
 import { Star } from 'lucide-react';
+import SectionBackground from './SectionBackground';
+
+const CONTAINER: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
+};
+const ITEM: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
+};
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -7,15 +21,32 @@ function getInitials(name: string): string {
 }
 
 export default function Reviews({ content }: { content: SiteContent }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: '-8% 0px' });
+
   return (
     <section
-      className="py-24"
+      className="py-24 relative overflow-hidden"
       id="reviews"
       style={{ background: 'linear-gradient(to bottom, #ffffff, #f5f9f7)' }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="text-center mb-16">
+      <SectionBackground
+        src={content.reviewsBackground}
+        overlayStyle={{
+          background:
+            'linear-gradient(to bottom, rgba(186,230,253,0.45) 0%, rgba(220,252,231,0.4) 60%, rgba(245,249,247,0.95) 100%)',
+        }}
+      />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative" style={{ zIndex: 1 }}>
+        <motion.div
+          ref={ref}
+          variants={CONTAINER}
+          initial="hidden"
+          animate={inView ? 'visible' : 'hidden'}
+        >
+          {/* Header */}
+          <motion.div variants={ITEM} className="text-center mb-16">
           <div className="nature-glass inline-flex rounded-full px-4 py-1.5 mb-5">
             <span className="font-body font-medium text-xs text-primary tracking-widest uppercase">
               Wall of Love
@@ -30,15 +61,17 @@ export default function Reviews({ content }: { content: SiteContent }) {
           <p className="font-body font-light text-sm max-w-md mx-auto leading-relaxed" style={{ color: 'rgba(21,32,51,0.6)' }}>
             Don&apos;t just take our word for it. Real stories from real guests.
           </p>
-        </div>
+          </motion.div>
 
-        {/* Masonry grid */}
-        <div className="columns-1 md:columns-2 lg:columns-3 gap-5">
-          {content.reviews.map((review, i) => (
-            <div
-              key={i}
-              className="break-inside-avoid mb-5 nature-glass rounded-2xl p-5 hover:shadow-lg transition-all duration-300"
-            >
+          {/* Masonry grid */}
+          <div className="columns-1 md:columns-2 lg:columns-3 gap-5">
+            {content.reviews.map((review, i) => (
+              <motion.div
+                key={i}
+                variants={ITEM}
+                whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                className="break-inside-avoid mb-5 nature-glass rounded-2xl p-5 hover:shadow-lg transition-shadow duration-300"
+              >
               {/* Stars */}
               <div className="flex gap-0.5 mb-3">
                 {[...Array(review.stars ?? 5)].map((_, s) => (
@@ -84,21 +117,22 @@ export default function Reviews({ content }: { content: SiteContent }) {
                   )}
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+              </motion.div>
+            ))}
+          </div>
 
-        <div className="text-center mt-12">
-          <a
-            href={content.facebookUrl || 'https://www.facebook.com'}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 font-body font-medium text-sm text-primary hover:text-primary/80 transition-colors"
-          >
-            See more reviews on Facebook
-            <span className="material-icons text-base">arrow_forward</span>
-          </a>
-        </div>
+          <motion.div variants={ITEM} className="text-center mt-12">
+            <a
+              href={content.facebookUrl || 'https://www.facebook.com'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 font-body font-medium text-sm text-primary hover:text-primary/80 transition-colors"
+            >
+              See more reviews on Facebook
+              <span className="material-icons text-base">arrow_forward</span>
+            </a>
+          </motion.div>
+        </motion.div>
       </div>
     </section>
   );

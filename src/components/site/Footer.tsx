@@ -1,6 +1,20 @@
-﻿import { SiteContent } from '@/lib/types';
+﻿'use client';
+
+import { useRef } from 'react';
+import { motion, useInView, type Variants } from 'framer-motion';
+import { SiteContent } from '@/lib/types';
 import Image from 'next/image';
 import Link from 'next/link';
+import SectionBackground from './SectionBackground';
+
+const CONTAINER: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.05 } },
+};
+const ITEM: Variants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
+};
 
 const NAV_LINKS = [
   { label: 'Experiences', href: '#experiences' },
@@ -45,6 +59,8 @@ const TwitterIcon = () => (
 
 export default function Footer({ content }: { content: SiteContent }) {
   const year = new Date().getFullYear();
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: '-5% 0px' });
 
   const ALL_SOCIALS = [
     { key: 'facebook', url: content.facebookUrl, label: 'Facebook', Icon: FacebookIcon },
@@ -62,89 +78,227 @@ export default function Footer({ content }: { content: SiteContent }) {
 
   return (
     <footer
-      className="pt-16 pb-8 border-t"
+      className="pt-0 pb-8 relative overflow-hidden"
       style={{
-        background: 'linear-gradient(to bottom, #eaf5f0, #f5f9f7)',
-        borderColor: 'rgba(20,184,129,0.12)',
+        background: 'linear-gradient(180deg, #0b3c5d 0%, #082f49 42%, #020617 100%)',
       }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 pb-12 border-b" style={{ borderColor: 'rgba(21,32,51,0.07)' }}>
-          {/* Brand */}
-          <div>
-            <Link href="/" className="flex items-center gap-3 mb-4">
-              <Image src="/assets/logo.png" alt={content.siteTitle} width={38} height={38} className="h-9 w-auto" />
-              <span className="font-body font-semibold text-base" style={{ color: '#152033' }}>
-                {content.siteTitle || 'Kamp Lambingan'}
-              </span>
-            </Link>
-            <p className="font-body font-light text-sm leading-relaxed" style={{ color: 'rgba(21,32,51,0.58)' }}>
-              {content.footerTagline || content.tagline || 'Your riverside glamping escape in the heart of nature.'}
-            </p>
-          </div>
+      {/* Admin-set video / image override */}
+      <SectionBackground
+        src={content.footerBackground}
+        overlayStyle={{
+          background:
+            'linear-gradient(180deg, rgba(11,60,93,0.92) 0%, rgba(2,6,23,0.97) 100%)',
+        }}
+      />
 
-          {/* Quick Links */}
-          <div>
-            <h4 className="font-body font-semibold text-xs uppercase tracking-widest mb-4" style={{ color: 'rgba(21,32,51,0.45)' }}>
-              Quick Links
-            </h4>
-            <ul className="space-y-2">
-              {NAV_LINKS.map((link) => (
-                <li key={link.href}>
-                  <a
-                    href={link.href}
-                    className="font-body font-light text-sm transition-colors hover:text-primary"
-                    style={{ color: 'rgba(21,32,51,0.6)' }}
-                  >
-                    {link.label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
+      {/* Wave divider — continues seamlessly from BookSection's bottom wave */}
+      <div className="relative pointer-events-none" style={{ marginTop: -1 }}>
+        <div style={{ animation: 'wave-bob 16s ease-in-out 4s infinite' }}>
+          <svg
+            viewBox="0 0 1440 48"
+            preserveAspectRatio="none"
+            style={{ display: 'block', width: '100%', height: 48 }}
+          >
+            <path
+              d="M0,28 C320,50 640,8 960,32 C1150,46 1300,18 1440,35 L1440,0 L0,0 Z"
+              fill="#0b3c5d"
+            />
+            <path
+              d="M0,38 C240,20 480,50 720,35 C960,20 1200,45 1440,38 L1440,0 L0,0 Z"
+              fill="rgba(8,47,73,0.55)"
+            />
+          </svg>
+        </div>
+      </div>
 
-          {/* Connect */}
-          <div>
-            <h4 className="font-body font-semibold text-xs uppercase tracking-widest mb-4" style={{ color: 'rgba(21,32,51,0.45)' }}>
-              Connect
-            </h4>
-            {socials.length > 0 && (
-              <div className="flex flex-wrap gap-2.5 mb-5">
-                {socials.map(({ url, label, Icon }) => (
-                  <a
-                    key={label}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-9 h-9 nature-glass rounded-full flex items-center justify-center transition-all hover:bg-primary hover:text-white hover:shadow-md"
-                    style={{ color: 'rgba(21,32,51,0.55)' }}
-                    aria-label={label}
-                  >
-                    <Icon />
-                  </a>
+      {/* Sparse deep-ocean fish silhouettes — very slow, low opacity */}
+      {([
+        { top: '22%', sw: 65, bw: 22, d: 0,  w: 30, h: 13, o: 0.10, rtl: false, blur: 1.0 },
+        { top: '62%', sw: 80, bw: 28, d: 25, w: 26, h: 11, o: 0.08, rtl: true,  blur: 1.5 },
+        { top: '43%', sw: 92, bw: 32, d: 48, w: 22, h: 10, o: 0.07, rtl: false, blur: 2.0 },
+      ] as const).map((f, i) => (
+        <div
+          key={i}
+          className="absolute pointer-events-none"
+          style={{ top: f.top, left: 0, right: 0, height: 0, zIndex: 2, overflow: 'visible' }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              width: f.w,
+              height: f.h,
+              animation: `${f.rtl ? 'fish-swim-rtl' : 'fish-swim-ltr'} ${f.sw}s linear ${f.d}s infinite`,
+              filter: `blur(${f.blur}px)`,
+            }}
+          >
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                animation: `fish-bob ${f.bw}s ease-in-out ${f.d * 0.5}s infinite`,
+                color: 'rgba(148,196,242,1)',
+                opacity: f.o,
+              }}
+            >
+              <svg
+                viewBox="0 0 60 24"
+                fill="currentColor"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  transform: f.rtl ? 'scaleX(-1)' : undefined,
+                }}
+              >
+                <path d="M55,12 C48,2 28,0 16,5 C7,9 3,12 3,12 C3,12 7,15 16,19 C28,24 48,22 55,12 Z" />
+                <path d="M3,12 L0,4 L5,12 L0,20 Z" />
+                <circle cx="47" cy="10" r="2" opacity="0.5" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Content */}
+      <div className="pt-12 pb-0">
+        <motion.div
+          ref={ref}
+          className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative"
+          style={{ zIndex: 10 }}
+          variants={CONTAINER}
+          initial="hidden"
+          animate={inView ? 'visible' : 'hidden'}
+        >
+          <motion.div
+            variants={ITEM}
+            className="grid grid-cols-1 md:grid-cols-3 gap-12 pb-12 border-b"
+            style={{ borderColor: 'rgba(255,255,255,0.08)' }}
+          >
+            {/* Brand */}
+            <div>
+              <Link href="/" className="flex items-center gap-3 mb-4">
+                <Image
+                  src="/assets/logo.png"
+                  alt={content.siteTitle}
+                  width={38}
+                  height={38}
+                  className="h-9 w-auto"
+                />
+                <span className="font-body font-semibold text-base text-white">
+                  {content.siteTitle || 'Kamp Lambingan'}
+                </span>
+              </Link>
+              <p
+                className="font-body font-light text-sm leading-relaxed"
+                style={{ color: 'rgba(255,255,255,0.52)' }}
+              >
+                {content.footerTagline ||
+                  content.tagline ||
+                  'Your riverside glamping escape in the heart of nature.'}
+              </p>
+            </div>
+
+            {/* Quick Links */}
+            <div>
+              <h4
+                className="font-body font-semibold text-xs uppercase tracking-widest mb-4"
+                style={{ color: 'rgba(255,255,255,0.35)' }}
+              >
+                Quick Links
+              </h4>
+              <ul className="space-y-2">
+                {NAV_LINKS.map((link) => (
+                  <li key={link.href}>
+                    <a
+                      href={link.href}
+                      className="font-body font-light text-sm transition-colors hover:text-sky-300"
+                      style={{ color: 'rgba(255,255,255,0.52)' }}
+                    >
+                      {link.label}
+                    </a>
+                  </li>
                 ))}
-              </div>
-            )}
-            {content.phone && (
-              <p className="font-body font-light text-sm mb-1">
-                <a href={`tel:${content.phone}`} className="hover:text-primary transition-colors" style={{ color: 'rgba(21,32,51,0.6)' }}>
-                  {content.phone}
-                </a>
-              </p>
-            )}
-            {content.email && (
-              <p className="font-body font-light text-sm">
-                <a href={`mailto:${content.email}`} className="hover:text-primary transition-colors" style={{ color: 'rgba(21,32,51,0.6)' }}>
-                  {content.email}
-                </a>
-              </p>
-            )}
-          </div>
-        </div>
+              </ul>
+            </div>
 
-        <div className="pt-8 text-center font-body font-light text-xs" style={{ color: 'rgba(21,32,51,0.38)' }}>
-          &copy; {year} {content.siteTitle || 'Kamp Lambingan'}. All rights reserved.
-        </div>
+            {/* Connect */}
+            <div>
+              <h4
+                className="font-body font-semibold text-xs uppercase tracking-widest mb-4"
+                style={{ color: 'rgba(255,255,255,0.35)' }}
+              >
+                Connect
+              </h4>
+              {socials.length > 0 && (
+                <div className="flex flex-wrap gap-2.5 mb-5">
+                  {socials.map(({ url, label, Icon }) => (
+                    <a
+                      key={label}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:text-sky-300"
+                      style={{
+                        color: 'rgba(255,255,255,0.48)',
+                        background: 'rgba(255,255,255,0.07)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.boxShadow =
+                          '0 0 14px rgba(56,189,248,0.35)';
+                        (e.currentTarget as HTMLElement).style.background =
+                          'rgba(56,189,248,0.12)';
+                        (e.currentTarget as HTMLElement).style.borderColor =
+                          'rgba(56,189,248,0.35)';
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.boxShadow = '';
+                        (e.currentTarget as HTMLElement).style.background =
+                          'rgba(255,255,255,0.07)';
+                        (e.currentTarget as HTMLElement).style.borderColor =
+                          'rgba(255,255,255,0.12)';
+                      }}
+                      aria-label={label}
+                    >
+                      <Icon />
+                    </a>
+                  ))}
+                </div>
+              )}
+              {content.phone && (
+                <p className="font-body font-light text-sm mb-1">
+                  <a
+                    href={`tel:${content.phone}`}
+                    className="transition-colors hover:text-sky-300"
+                    style={{ color: 'rgba(255,255,255,0.52)' }}
+                  >
+                    {content.phone}
+                  </a>
+                </p>
+              )}
+              {content.email && (
+                <p className="font-body font-light text-sm">
+                  <a
+                    href={`mailto:${content.email}`}
+                    className="transition-colors hover:text-sky-300"
+                    style={{ color: 'rgba(255,255,255,0.52)' }}
+                  >
+                    {content.email}
+                  </a>
+                </p>
+              )}
+            </div>
+          </motion.div>
+
+          <motion.div
+            variants={ITEM}
+            className="pt-8 text-center font-body font-light text-xs"
+            style={{ color: 'rgba(255,255,255,0.26)' }}
+          >
+            &copy; {year} {content.siteTitle || 'Kamp Lambingan'}. All rights reserved.
+          </motion.div>
+        </motion.div>
       </div>
     </footer>
   );

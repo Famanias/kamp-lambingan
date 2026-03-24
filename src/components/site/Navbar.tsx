@@ -41,7 +41,7 @@ export default function Navbar({ content }: { content: SiteContent }) {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div
-            className={`nature-glass rounded-2xl flex items-center justify-between px-5 py-3 transition-shadow duration-300 ${
+            className={`nature-glass rounded-2xl flex items-center justify-between px-5 py-3 transition-shadow duration-300 nav-float ${
               scrolled ? 'shadow-md shadow-black/5' : ''
             }`}
           >
