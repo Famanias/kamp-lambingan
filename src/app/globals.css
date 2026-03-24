@@ -1,27 +1,103 @@
 @import "tailwindcss";
 
 @theme inline {
+  /* Nature teal palette */
   --color-primary: #14b881;
-  --color-background-light: #f6f8f7;
-  --color-background-dark: #11211c;
+  --color-primary-dark: #0d9268;
+  --color-background: #f5f9f7;
+  --color-background-light: #f5f9f7;
+  --color-background-alt: #eaf5f0;
+  --color-foreground: #152033;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  section {
+    scroll-margin-top: 80px;
+  }
+}
+
+@layer components {
+  /* Custom font utilities */
+  .font-heading {
+    font-family: 'Instrument Serif', serif;
+  }
+  .font-body {
+    font-family: 'Barlow', sans-serif;
+  }
+
+  /* ─── Nature Glassmorphism — subtle ─── */
+  .nature-glass {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .nature-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: linear-gradient(
+      135deg,
+      rgba(16, 185, 129, 0.25) 0%,
+      rgba(45, 212, 191, 0.15) 40%,
+      rgba(255, 255, 255, 0) 70%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box,
+                  linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* ─── Nature Glassmorphism — strong ─── */
+  .nature-glass-strong {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    border: 1px solid rgba(255, 255, 255, 0.95);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .nature-glass-strong::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: linear-gradient(
+      135deg,
+      rgba(16, 185, 129, 0.35) 0%,
+      rgba(45, 212, 191, 0.22) 45%,
+      rgba(255, 255, 255, 0) 70%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box,
+                  linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
 }
 
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* FAQ accordion arrow rotation */
-details[open] .faq-arrow {
-  transform: rotate(180deg);
-}
-
-html {
-  scroll-behavior: smooth;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }

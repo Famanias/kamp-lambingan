@@ -1,46 +1,155 @@
+'use client';
+
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 import { SiteContent } from '@/lib/types';
+import { ArrowUpRight, ChevronDown, MapPin } from 'lucide-react';
+
+const BlurText = ({ text, delay = 0 }: { text: string; delay?: number }) => {
+  const words = text.split(' ');
+  return (
+    <>
+      {words.map((word, i) => (
+        <motion.span
+          key={i}
+          initial={{ filter: 'blur(14px)', opacity: 0, y: 10 }}
+          animate={{ filter: 'blur(0px)', opacity: 1, y: 0 }}
+          transition={{ delay: delay + i * 0.07, duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
+          className="inline-block"
+          style={{ marginRight: '0.22em' }}
+        >
+          {word}
+        </motion.span>
+      ))}
+    </>
+  );
+};
 
 export default function Hero({ content }: { content: SiteContent }) {
   return (
-    <header className="relative h-screen min-h-[600px] flex items-center justify-center overflow-hidden">
-      {/* Background image */}
+    <header className="relative overflow-hidden" style={{ height: '1000px' }}>
+      {/* Background */}
       <div className="absolute inset-0 z-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          alt="Riverside glamping villa at sunset with warm lighting"
-          className="w-full h-full object-cover"
-          src={content.heroImage || "https://lh3.googleusercontent.com/aida-public/AB6AXuDnj2QB_fyQTs7LqKB3R2SqfUJLaLTei7vxyj83yFBp_ozZ0yPzXx-ILsBq766xaoDjUfGFGhIBtMc5qop2MRcM4K_foZfDMdTE4WTFs1h8J5ljpowXavQqdhqVqeB95_Lh3GXS8ve-WjSjec8fKZ2aSy-zkdW8byUM2NZomYtEYkCkDRqLvMQ-SfI-kgLuEZwRjjwEyrP4lLV91OLGL4DzKiK_ezUc5MkXID8aW0NyRVM_0xHrgV552zd-uCtkQRY2fZ5AjlljktsJ"}
+        {content.heroImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={content.heroImage}
+            alt="Kamp Lambingan riverside escape"
+            className="w-full h-full object-cover"
+            fetchPriority="high"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-teal-100 via-cyan-50 to-emerald-50" />
+        )}
+
+        {/* Blue-green nature overlay — NOT black */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              'linear-gradient(to bottom, rgba(15,118,110,0.58) 0%, rgba(22,78,99,0.38) 42%, rgba(245,249,247,0.92) 100%)',
+          }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-[#f6f8f7]" />
+        {/* Bottom fade to page background */}
+        <div
+          className="absolute bottom-0 left-0 right-0 h-56"
+          style={{ background: 'linear-gradient(to top, #f5f9f7, transparent)' }}
+        />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-20">
-        <span className="inline-block py-1 px-3 rounded-full bg-white/20 backdrop-blur-sm text-white text-sm font-semibold mb-6 border border-white/30 uppercase tracking-wider animate-[fadeInUp_0.8s_ease-out_forwards]">
-          {content.heroLocation}
-        </span>
-        <h1 className="text-4xl md:text-6xl lg:text-7xl font-extrabold text-white tracking-tight mb-6 drop-shadow-lg max-w-4xl mx-auto leading-tight animate-[fadeInUp_0.8s_ease-out_0.2s_forwards] opacity-0">
-          {content.heroTitle}
+      {/* Content */}
+      <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4 sm:px-6 pt-24">
+        {/* Location badge */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.6 }}
+          className="nature-glass rounded-full px-4 py-1.5 inline-flex items-center gap-2 mb-8"
+        >
+          <MapPin className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+          <span className="font-body font-medium text-xs text-primary tracking-widest uppercase">
+            {content.heroLocation}
+          </span>
+        </motion.div>
+
+        {/* Main heading — BlurText word-by-word animation */}
+        <h1
+          className="font-heading italic text-white mb-8"
+          style={{
+            fontSize: 'clamp(3rem, 8vw, 6.5rem)',
+            lineHeight: 0.9,
+            letterSpacing: '-0.03em',
+            maxWidth: '14ch',
+            textShadow: '0 2px 24px rgba(0,0,0,0.18)',
+          }}
+        >
+          <BlurText text={content.heroTitle} delay={0.5} />
         </h1>
-        <p className="text-lg md:text-xl text-gray-100 mb-10 max-w-2xl mx-auto font-light leading-relaxed animate-[fadeInUp_0.8s_ease-out_0.4s_forwards] opacity-0">
+
+        {/* Subtitle */}
+        <motion.p
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.3, duration: 0.7 }}
+          className="font-body font-light max-w-xl mx-auto mb-10 leading-relaxed"
+          style={{ color: 'rgba(255,255,255,0.88)', fontSize: '1.0625rem' }}
+        >
           {content.heroSubtitle}
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center animate-[fadeInUp_0.8s_ease-out_0.6s_forwards] opacity-0">
+        </motion.p>
+
+        {/* CTAs */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.6, duration: 0.6 }}
+          className="flex flex-col sm:flex-row gap-4 items-center"
+        >
           <Link
             href="/book"
-            className="w-full sm:w-auto px-8 py-4 bg-primary hover:bg-primary/90 text-white text-lg font-bold rounded-lg shadow-xl shadow-primary/30 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2"
+            className="inline-flex items-center gap-2 bg-primary text-white px-8 py-3.5 rounded-full font-body font-medium text-sm shadow-xl shadow-primary/30 hover:bg-primary/90 transition-all hover:-translate-y-0.5 active:translate-y-0"
           >
-            <span className="material-icons text-xl">event_available</span>
-            Book Your Stay
+            Reserve Your Stay
+            <ArrowUpRight className="w-4 h-4" />
           </Link>
           <a
             href="#gallery"
-            className="w-full sm:w-auto px-8 py-4 bg-white hover:bg-gray-100 text-gray-900 text-lg font-bold rounded-lg shadow-xl transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2"
+            className="nature-glass inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-body font-medium text-sm transition-all hover:shadow-md"
+            style={{ color: '#152033' }}
           >
-            <span className="material-icons text-xl">photo_library</span>
             Explore Gallery
           </a>
-        </div>
+        </motion.div>
+
+        {/* Trust line */}
+        {content.tagline && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 2.0, duration: 0.7 }}
+            className="mt-10 flex items-center gap-3"
+          >
+            <span className="w-8 h-px bg-primary/50" />
+            <span className="font-body text-xs font-medium text-primary/90 tracking-wider">
+              {content.tagline}
+            </span>
+            <span className="w-8 h-px bg-primary/50" />
+          </motion.div>
+        )}
+
+        {/* Scroll indicator */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 2.3, duration: 0.6 }}
+          className="absolute bottom-10 left-1/2 -translate-x-1/2"
+        >
+          <motion.div
+            animate={{ y: [0, 6, 0] }}
+            transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+          >
+            <ChevronDown className="w-5 h-5 text-primary/60" />
+          </motion.div>
+        </motion.div>
       </div>
     </header>
   );

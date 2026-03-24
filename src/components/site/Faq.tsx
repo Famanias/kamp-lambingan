@@ -2,58 +2,70 @@
 
 import { useState } from 'react';
 import { SiteContent } from '@/lib/types';
+import { ChevronDown } from 'lucide-react';
 
 export default function Faq({ content }: { content: SiteContent }) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
-  const toggle = (i: number) => setOpenIndex(prev => (prev === i ? null : i));
-
   return (
-    <section className="py-24 bg-background-light" id="faq">
+    <section
+      className="py-24"
+      id="faq"
+      style={{ background: 'linear-gradient(to bottom, #f5f9f7, #eaf5f0)' }}
+    >
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-sm font-bold text-primary uppercase tracking-widest mb-2">Got Questions?</h2>
-          <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Frequently Asked Questions</h3>
-          <p className="text-gray-600">
-            Everything you need to know before your visit. Can&apos;t find an answer? Message us on Facebook.
+        {/* Header */}
+        <div className="text-center mb-14">
+          <div className="nature-glass inline-flex rounded-full px-4 py-1.5 mb-5">
+            <span className="font-body font-medium text-xs text-primary tracking-widest uppercase">
+              Got Questions?
+            </span>
+          </div>
+          <h2
+            className="font-heading italic mb-4"
+            style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', lineHeight: 0.95, letterSpacing: '-0.02em', color: '#152033' }}
+          >
+            Frequently Asked Questions
+          </h2>
+          <p className="font-body font-light text-sm leading-relaxed" style={{ color: 'rgba(21,32,51,0.6)' }}>
+            Everything you need before booking. Can&apos;t find an answer?{' '}
+            <a href="https://m.me/kamplambingan" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+              Message us.
+            </a>
           </p>
         </div>
-        <div className="divide-y divide-gray-200 border-y border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white">
+
+        {/* Accordion */}
+        <div className="space-y-3">
           {content.faqs.map((faq, i) => {
             const isOpen = openIndex === i;
             return (
-              <div key={i}>
+              <div key={i} className="nature-glass rounded-2xl overflow-hidden">
                 <button
-                  onClick={() => toggle(i)}
+                  onClick={() => setOpenIndex(isOpen ? null : i)}
                   aria-expanded={isOpen}
-                  className="w-full flex items-center justify-between gap-4 cursor-pointer p-5 hover:bg-gray-50 transition-colors text-left select-none"
+                  className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left select-none transition-colors hover:bg-primary/5"
                 >
-                  <span className="font-semibold text-gray-800">{faq.question}</span>
-                  <span
-                    className={`material-icons text-primary flex-shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : 'rotate-0'}`}
-                  >
-                    expand_more
+                  <span className="font-body font-medium text-sm" style={{ color: '#152033' }}>
+                    {faq.question}
                   </span>
+                  <ChevronDown
+                    className={`w-4 h-4 text-primary flex-shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+                  />
                 </button>
                 <div
-                  className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-80 opacity-100' : 'max-h-0 opacity-0'}`}
                 >
-                  <p className="px-5 pb-5 text-gray-600 leading-relaxed">{faq.answer}</p>
+                  <p
+                    className="px-5 pb-5 font-body font-light text-sm leading-relaxed"
+                    style={{ color: 'rgba(21,32,51,0.68)' }}
+                  >
+                    {faq.answer}
+                  </p>
                 </div>
               </div>
             );
           })}
-        </div>
-        <div className="text-center mt-10 text-gray-500 text-sm">
-          Still have questions?{' '}
-          <a
-            href="https://m.me/kamplambingan"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary font-semibold hover:underline"
-          >
-            Message us on Facebook
-          </a>
         </div>
       </div>
     </section>
