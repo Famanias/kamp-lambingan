@@ -194,3 +194,29 @@
   33%       { transform: scale(1.25) translate(20px, -14px);  opacity: 0.09; }
   66%       { transform: scale(0.85) translate(-14px, 10px);  opacity: 0.04; }
 }
+
+/* ── Sandy ocean floor: 3D gentle water waves (FAQ / Reviews) ───── */
+/* Each keyframe keeps the rotateX fixed and only bobs on Y to stay stable */
+@keyframes seawave-far {
+  0%, 100% { transform: rotateX(72deg) translateY(0px);    }
+  50%       { transform: rotateX(72deg) translateY(-7px);   }
+}
+@keyframes seawave-mid {
+  0%, 100% { transform: rotateX(58deg) translateY(0px);    }
+  50%       { transform: rotateX(58deg) translateY(-9px);   }
+}
+@keyframes seawave-near {
+  0%, 100% { transform: rotateX(44deg) translateY(0px);    }
+  50%       { transform: rotateX(44deg) translateY(-11px);  }
+}
+@keyframes sand-grain-shimmer {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.55; }
+}
+/* Clear rising bubble for sandy sections */
+@keyframes sand-bubble-rise {
+  0%   { transform: translateY(0)      translateX(0);   opacity: 1;   }
+  25%  { transform: translateY(-22vh)  translateX(5px); opacity: 0.85; }
+  60%  { transform: translateY(-58vh)  translateX(-4px);opacity: 0.60; }
+  100% { transform: translateY(-108vh) translateX(2px); opacity: 0;   }
+}

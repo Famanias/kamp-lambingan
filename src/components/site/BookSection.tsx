@@ -48,13 +48,22 @@ const FISH = [
 ];
 
 const BUBBLES = [
-  { left: '7%',  size: 6, d: 0,   dur: 12 },
-  { left: '18%', size: 4, d: 3.2, dur: 15 },
-  { left: '31%', size: 7, d: 7,   dur: 10 },
-  { left: '54%', size: 5, d: 1.5, dur: 13 },
-  { left: '68%', size: 8, d: 5,   dur: 11 },
-  { left: '81%', size: 4, d: 9,   dur: 16 },
-  { left: '92%', size: 6, d: 2.2, dur: 14 },
+  { left: '3%',   size: 5,  d: 0,   dur: 14 },
+  { left: '7%',   size: 6,  d: 0,   dur: 12 },
+  { left: '12%',  size: 4,  d: 2.1, dur: 18 },
+  { left: '18%',  size: 4,  d: 3.2, dur: 15 },
+  { left: '24%',  size: 7,  d: 5.5, dur: 11 },
+  { left: '31%',  size: 7,  d: 7,   dur: 10 },
+  { left: '38%',  size: 5,  d: 1.2, dur: 16 },
+  { left: '45%',  size: 6,  d: 4.3, dur: 13 },
+  { left: '54%',  size: 5,  d: 1.5, dur: 13 },
+  { left: '60%',  size: 8,  d: 6.8, dur: 9  },
+  { left: '68%',  size: 8,  d: 5,   dur: 11 },
+  { left: '75%',  size: 4,  d: 2.7, dur: 17 },
+  { left: '81%',  size: 4,  d: 9,   dur: 16 },
+  { left: '87%',  size: 6,  d: 3.4, dur: 12 },
+  { left: '92%',  size: 6,  d: 2.2, dur: 14 },
+  { left: '97%',  size: 5,  d: 7.9, dur: 15 },
 ];
 
 const CAUSTICS = [

@@ -23,17 +23,55 @@ export default function Packages({ content }: { content: SiteContent }) {
     <section
       className="py-24 relative overflow-hidden"
       id="rates"
-      style={{ background: 'linear-gradient(to bottom, #f5f9f7, #eaf5f0)' }}
+      style={{ background: 'linear-gradient(to bottom, #d0e8dc 0%, #c8e4d8 100%)' }}
     >
       <SectionBackground
         src={content.packagesBackground}
         overlayStyle={{
           background:
-            'linear-gradient(135deg, rgba(254,243,199,0.5) 0%, rgba(209,250,229,0.55) 60%, rgba(245,249,247,0.95) 100%)',
+            'linear-gradient(135deg, rgba(101,254,175,0.55) 0%, rgba(0,175,94,0.42) 50%, rgba(204,254,229,0.88) 100%)',
         }}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative" style={{ zIndex: 1 }}>
+      {/* Water-ripple ring decorations */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 1 }}>
+        <div
+          className="absolute rounded-full border-2 border-primary/15 w-72 h-72"
+          style={{ top: '20%', left: '3%', animation: 'water-ring 6s ease-out infinite' }}
+        />
+        <div
+          className="absolute rounded-full border border-primary/10 w-56 h-56"
+          style={{ bottom: '15%', right: '6%', animation: 'water-ring 6s ease-out 3s infinite' }}
+        />
+        <div
+          className="absolute rounded-full border border-teal-300/20 w-40 h-40"
+          style={{ top: '45%', left: '45%', animation: 'water-ring 7s ease-out 1.5s infinite' }}
+        />
+        {/* Decorative leaf shapes */}
+        {[
+          { top: '-10%', left: '30%',  delay: '2s',   dur: '15s', size: 16 },
+          { top: '-10%', left: '62%',  delay: '6s',   dur: '13s', size: 14 },
+          { top: '-10%', right: '12%', delay: '9.5s', dur: '17s', size: 18 },
+        ].map((leaf, i) => (
+          <svg
+            key={i}
+            width={leaf.size} height={leaf.size * 1.6}
+            viewBox="0 0 16 24"
+            fill="rgba(3, 87, 59, 0.18)"
+            style={{
+              position: 'absolute',
+              top: leaf.top,
+              left: 'left' in leaf ? leaf.left : undefined,
+              right: 'right' in leaf ? leaf.right : undefined,
+              animation: `leaf-drift ${leaf.dur} linear ${leaf.delay} infinite`,
+            }}
+          >
+            <path d="M8 0 C8 0, 0 8 0 14 C0 20 4 24 8 24 C12 24 16 20 16 14 C16 8 8 0 8 0Z" />
+          </svg>
+        ))}
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative" style={{ zIndex: 2 }}>
         <motion.div
           ref={ref}
           variants={CONTAINER}

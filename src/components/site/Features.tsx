@@ -22,18 +22,68 @@ export default function Features({ content }: { content: SiteContent }) {
     <section
       className="py-24 relative overflow-hidden"
       id="experiences"
-      style={{ background: 'linear-gradient(to bottom, #f5f9f7, #ffffff)' }}
+      style={{ background: 'linear-gradient(to bottom, #295138 0%, #4aa86c 35%, #7df6ab 65%, #eaf5f0 100%)' }}
     >
       {/* Optional admin-set background image */}
       <SectionBackground
         src={content.featuresBackground}
         overlayStyle={{
           background:
-            'linear-gradient(135deg, rgba(186,230,253,0.45) 0%, rgba(220,252,231,0.55) 50%, rgba(245,249,247,0.95) 100%)',
+            'linear-gradient(135deg, rgba(6, 30, 15, 0.62) 0%, rgba(16, 75, 40, 0.46) 50%, rgba(80, 180, 120, 0.78) 100%)',
         }}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative" style={{ zIndex: 1 }}>
+      {/* Water-ripple ring decorations */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 1 }}>
+        <div
+          className="absolute rounded-full border-2 w-72 h-72"
+          style={{
+            top: '15%', left: '5%',
+            borderColor: 'rgba(160, 255, 195, 0.18)',
+            animation: 'water-ring 6s ease-out infinite',
+          }}
+        />
+        <div
+          className="absolute rounded-full border w-56 h-56"
+          style={{
+            bottom: '20%', right: '8%',
+            borderColor: 'rgba(160, 255, 195, 0.13)',
+            animation: 'water-ring 6s ease-out 3s infinite',
+          }}
+        />
+        <div
+          className="absolute rounded-full border w-40 h-40"
+          style={{
+            top: '55%', left: '40%',
+            borderColor: 'rgba(180, 255, 215, 0.16)',
+            animation: 'water-ring 7s ease-out 1.5s infinite',
+          }}
+        />
+        {/* Decorative leaf shapes */}
+        {[
+          { top: '-10%', left: '20%',  delay: '0s',   dur: '14s', size: 18 },
+          { top: '-10%', left: '55%',  delay: '4s',   dur: '17s', size: 14 },
+          { top: '-10%', right: '25%', delay: '7.5s', dur: '15s', size: 16 },
+        ].map((leaf, i) => (
+          <svg
+            key={i}
+            width={leaf.size} height={leaf.size * 1.6}
+            viewBox="0 0 16 24"
+            fill="rgba(170, 255, 205, 0.30)"
+            style={{
+              position: 'absolute',
+              top: leaf.top,
+              left: 'left' in leaf ? leaf.left : undefined,
+              right: 'right' in leaf ? leaf.right : undefined,
+              animation: `leaf-drift ${leaf.dur} linear ${leaf.delay} infinite`,
+            }}
+          >
+            <path d="M8 0 C8 0, 0 8 0 14 C0 20 4 24 8 24 C12 24 16 20 16 14 C16 8 8 0 8 0Z" />
+          </svg>
+        ))}
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative" style={{ zIndex: 2 }}>
         <motion.div
           ref={ref}
           variants={CONTAINER}
@@ -49,11 +99,11 @@ export default function Features({ content }: { content: SiteContent }) {
             </div>
             <h2
               className="font-heading italic mb-4"
-              style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', lineHeight: 0.95, letterSpacing: '-0.02em', color: '#152033' }}
+              style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', lineHeight: 0.95, letterSpacing: '-0.02em', color: '#ffffff' }}
             >
               {content.featuresTitle}
             </h2>
-            <p className="font-body font-light text-sm max-w-xl mx-auto leading-relaxed" style={{ color: 'rgba(21,32,51,0.6)' }}>
+            <p className="font-body font-light text-sm max-w-xl mx-auto leading-relaxed" style={{ color: 'rgba(255, 255, 255, 0.78)' }}>
               {content.featuresSubtitle}
             </p>
           </motion.div>

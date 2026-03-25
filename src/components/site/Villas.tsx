@@ -200,13 +200,13 @@ export default function Villas({ content }: { content: SiteContent }) {
     <section
       className="py-24 relative overflow-hidden"
       id="villas"
-      style={{ background: 'linear-gradient(to bottom, #f5f9f7, #eaf5f0)' }}
+      style={{ background: 'linear-gradient(to bottom, #c8e4d8 0%, #dde0b0 40%, #f0d490 72%, #feebc5 100%)' }}
     >
       <SectionBackground
         src={content.villasBackground}
         overlayStyle={{
           background:
-            'linear-gradient(to bottom, rgba(167,243,208,0.45) 0%, rgba(209,250,229,0.4) 50%, rgba(245,249,247,0.95) 100%)',
+            'linear-gradient(to bottom, rgba(60,180,110,0.30) 0%, rgba(140,160,60,0.18) 45%, rgba(254,235,197,0.80) 100%)',
         }}
       />
 

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRef } from 'react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { SiteContent } from '@/lib/types';
 import { ArrowUpRight, ChevronDown, MapPin } from 'lucide-react';
 import SectionBackground from './SectionBackground';
@@ -31,9 +31,6 @@ const BlurText = ({ text, delay = 0 }: { text: string; delay?: number }) => {
 
 export default function Hero({ content }: { content: SiteContent }) {
   const heroRef = useRef<HTMLElement>(null);
-  const { scrollY } = useScroll();
-  // Parallax: bg moves up at half the scroll speed
-  const bgY = useTransform(scrollY, [0, 800], [0, -100]);
 
   // Resolve media: prefer heroBackground, fall back to heroImage
   const mediaSrc = content.heroBackground || content.heroImage;
@@ -42,46 +39,26 @@ export default function Hero({ content }: { content: SiteContent }) {
   return (
     <header ref={heroRef} className="relative overflow-hidden" style={{ height: '1000px' }}>
       {/* Background media layer */}
-      <motion.div className="absolute inset-0 z-0" style={{ y: bgY }}>
+      <div className="absolute inset-0 z-0">
         {mediaSrc ? (
           isVideo ? (
             /* Video / HLS — delegated to SectionBackground */
             <SectionBackground
               src={mediaSrc}
-              overlayStyle={{
-                background:
-                  'linear-gradient(to bottom, rgba(15,118,110,0.58) 0%, rgba(22,78,99,0.38) 42%, rgba(245,249,247,0.92) 100%)',
-              }}
             />
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={mediaSrc}
               alt="Kamp Lambingan riverside escape"
-              className="w-full h-full object-cover scale-110"
+              className="w-full h-full object-cover"
               fetchPriority="high"
             />
           )
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-teal-100 via-cyan-50 to-emerald-50" />
         )}
-
-        {/* Overlay (only when NOT video — SectionBackground handles video overlay) */}
-        {!isVideo && (
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                'linear-gradient(to bottom, rgba(15,118,110,0.58) 0%, rgba(22,78,99,0.38) 42%, rgba(245,249,247,0.92) 100%)',
-            }}
-          />
-        )}
-        {/* Bottom fade */}
-        <div
-          className="absolute bottom-0 left-0 right-0 h-56"
-          style={{ background: 'linear-gradient(to top, #f5f9f7, transparent)' }}
-        />
-      </motion.div>
+      </div>
 
       {/* Content */}
       <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4 sm:px-6 pt-24">

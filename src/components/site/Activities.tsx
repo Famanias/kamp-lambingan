@@ -29,7 +29,7 @@ export default function Activities({ content }: { content: SiteContent }) {
         src={content.activitiesBackground}
         overlayStyle={{
           background:
-            'linear-gradient(135deg, rgba(209,250,229,0.65) 0%, rgba(167,243,208,0.5) 50%, rgba(245,249,247,0.92) 100%)',
+            'linear-gradient(135deg, rgba(101, 254, 175, 0.65) 0%, rgba(0, 175, 94, 0.5) 50%, rgba(204, 254, 229, 0.92) 100%)',
         }}
       />
 
@@ -66,7 +66,7 @@ export default function Activities({ content }: { content: SiteContent }) {
             key={i}
             width={leaf.size} height={leaf.size * 1.6}
             viewBox="0 0 16 24"
-            fill="rgba(20,184,129,0.18)"
+            fill="rgba(3, 87, 59, 0.18)"
             style={{
               position: 'absolute',
               top: leaf.top,
