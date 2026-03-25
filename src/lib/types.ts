@@ -82,17 +82,6 @@ export interface SiteContent {
   gcashQrImage?: string;
   gcashNumber?: string;
   gcashName?: string;
-  // Per-section background media (video URL .m3u8/.mp4 or image URL)
-  heroBackground?: string;
-  featuresBackground?: string;
-  activitiesBackground?: string;
-  galleryBackground?: string;
-  packagesBackground?: string;
-  villasBackground?: string;
-  reviewsBackground?: string;
-  faqBackground?: string;
-  bookBackground?: string;
-  footerBackground?: string;
 }
 
 export type BookingStatus = 'pending' | 'confirmed' | 'cancelled';

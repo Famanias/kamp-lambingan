@@ -156,11 +156,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   onChange={(url) => updateField('heroImage', url)}
                 />
               </div>
-              <div>
-                <label className={labelClass}>Hero Background (video or image URL)</label>
-                <input className={inputClass} value={content.heroBackground || ''} onChange={(e) => updateField('heroBackground', e.target.value)} placeholder="https://... (.m3u8, .mp4, or image URL)" />
-                <p className="text-xs text-gray-400 mt-1">Overrides Hero Image when set. Supports HLS (.m3u8), MP4, or any image URL.</p>
-              </div>
             </div>
           )}
 
@@ -183,10 +178,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
           {activeSection === 'features' && (
             <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Section Background (video or image URL)</label>
-                <input className={inputClass} value={content.featuresBackground || ''} onChange={(e) => updateField('featuresBackground', e.target.value)} placeholder="https://... (.m3u8, .mp4, or image URL)" />
-              </div>
               {content.features.map((f: Feature, i: number) => (
                 <div
                   key={i}
@@ -230,10 +221,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
           {activeSection === 'activities' && (
             <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Section Background (video or image URL)</label>
-                <input className={inputClass} value={content.activitiesBackground || ''} onChange={(e) => updateField('activitiesBackground', e.target.value)} placeholder="https://... (.m3u8, .mp4, or image URL)" />
-              </div>
               {content.activities.map((a: Activity, i: number) => (
                 <div
                   key={i}
@@ -277,10 +264,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
           {activeSection === 'packages' && (
             <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Section Background (video or image URL)</label>
-                <input className={inputClass} value={content.packagesBackground || ''} onChange={(e) => updateField('packagesBackground', e.target.value)} placeholder="https://... (.m3u8, .mp4, or image URL)" />
-              </div>
               {content.packages.map((p: Package, i: number) => (
                 <div
                   key={i}
@@ -365,10 +348,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
           {activeSection === 'villas' && (
             <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Section Background (video or image URL)</label>
-                <input className={inputClass} value={content.villasBackground || ''} onChange={(e) => updateField('villasBackground', e.target.value)} placeholder="https://... (.m3u8, .mp4, or image URL)" />
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Section Title</label>
@@ -467,10 +446,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
           {activeSection === 'reviews' && (
             <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Section Background (video or image URL)</label>
-                <input className={inputClass} value={content.reviewsBackground || ''} onChange={(e) => updateField('reviewsBackground', e.target.value)} placeholder="https://... (.m3u8, .mp4, or image URL)" />
-              </div>
               <div className="flex items-center gap-2 pb-1">
                 <span className="text-xs text-gray-500 font-medium">Sort by:</span>
                 <button
@@ -579,10 +554,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
           {activeSection === 'faq' && (
             <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Section Background (video or image URL)</label>
-                <input className={inputClass} value={content.faqBackground || ''} onChange={(e) => updateField('faqBackground', e.target.value)} placeholder="https://... (.m3u8, .mp4, or image URL)" />
-              </div>
               {content.faqs.map((f: FaqItem, i: number) => (
                 <div
                   key={i}
@@ -620,14 +591,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
           {activeSection === 'footer' && (
             <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Footer Background (video or image URL)</label>
-                <input className={inputClass} value={content.footerBackground || ''} onChange={(e) => updateField('footerBackground', e.target.value)} placeholder="https://... (.m3u8, .mp4, or image URL)" />
-              </div>
-              <div>
-                <label className={labelClass}>Book Section Background (video or image URL)</label>
-                <input className={inputClass} value={content.bookBackground || ''} onChange={(e) => updateField('bookBackground', e.target.value)} placeholder="https://... (.m3u8, .mp4, or image URL)" />
-              </div>
               <div>
                 <label className={labelClass}>Footer Tagline</label>
                 <textarea className={inputClass} rows={2} value={content.footerTagline || ''} onChange={(e) => updateField('footerTagline', e.target.value)} />
@@ -738,10 +701,6 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
 
           {activeSection === 'gallery' && (
             <div className="space-y-4">
-              <div>
-                <label className={labelClass}>Section Background (video or image URL)</label>
-                <input className={inputClass} value={content.galleryBackground || ''} onChange={(e) => updateField('galleryBackground', e.target.value)} placeholder="https://... (.m3u8, .mp4, or image URL)" />
-              </div>
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-500">Paste a URL or upload an image. All images are displayed in the gallery.</p>
                 <button
