@@ -1,62 +1,155 @@
+'use client';
+
+import { useRef } from 'react';
+import { motion, useInView, type Variants } from 'framer-motion';
 import { SiteContent } from '@/lib/types';
+import { Star } from 'lucide-react';
+import SectionBackground from './SectionBackground';
+
+const CONTAINER: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
+};
+const ITEM: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
+};
 
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? '';
-  const second = parts[1]?.[0] ?? parts[0]?.[1] ?? '';
-  return (first + second).toUpperCase();
+  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? parts[0]?.[1] ?? '')).toUpperCase();
 }
 
 export default function Reviews({ content }: { content: SiteContent }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: '-8% 0px' });
+
   return (
-    <section className="py-24 bg-white" id="reviews">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-sm font-bold text-primary uppercase tracking-widest mb-2">Wall of Love</h2>
-          <h3 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">What Our Guests Say</h3>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Don&apos;t just take our word for it. Here is what our guests have to say about their riverside escape at Kamp Lambingan.
-          </p>
-        </div>
-        <div className="columns-1 md:columns-2 lg:columns-3 gap-6">
-          {content.reviews.map((review, i) => (
-            <div key={i} className="break-inside-avoid mb-6 bg-white p-6 rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-100">
-              <div className="flex text-primary mb-3 text-sm">
-                {[...Array(5)].map((_, s) => (
-                  <span key={s} className="material-icons">star</span>
+    <section
+      className="py-24 relative overflow-hidden"
+      id="reviews"
+      style={{ background: '#feebc5' }}
+    >
+      {/* Optional CMS background */}
+      <SectionBackground src={content.reviewsBackground} />
+
+      {/* Sandy grain texture */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 1,
+          backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='grain'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0.25'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23grain)' opacity='0.14'/%3E%3C/svg%3E\")",
+          pointerEvents: 'none',
+          animation: 'sand-grain-shimmer 8s ease-in-out infinite',
+        }}
+      />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative" style={{ zIndex: 10 }}>
+        <motion.div
+          ref={ref}
+          variants={CONTAINER}
+          initial="hidden"
+          animate={inView ? 'visible' : 'hidden'}
+        >
+          {/* Header */}
+          <motion.div variants={ITEM} className="text-center mb-16">
+            <div
+              className="inline-flex rounded-full px-4 py-1.5 mb-5"
+              style={{ background: 'rgba(160,100,40,0.15)', border: '1px solid rgba(160,100,40,0.30)', backdropFilter: 'blur(8px)' }}
+            >
+              <span className="font-body font-medium text-xs tracking-widest uppercase" style={{ color: '#7a4a18' }}>
+                Wall of Love
+              </span>
+            </div>
+            <h2
+              className="font-heading italic mb-4"
+              style={{ fontSize: 'clamp(2rem, 4vw, 2.75rem)', lineHeight: 0.95, letterSpacing: '-0.02em', color: '#152033' }}
+            >
+              What Our Guests Say
+            </h2>
+            <p className="font-body font-light text-sm max-w-md mx-auto leading-relaxed" style={{ color: 'rgba(21,32,51,0.6)' }}>
+              Don&apos;t just take our word for it. Real stories from real guests.
+            </p>
+          </motion.div>
+
+          {/* Masonry grid */}
+          <div className="columns-1 md:columns-2 lg:columns-3 gap-5">
+            {content.reviews.map((review, i) => (
+              <motion.div
+                key={i}
+                variants={ITEM}
+                whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                className="break-inside-avoid mb-5 rounded-2xl p-5 hover:shadow-lg transition-shadow duration-300"
+                style={{
+                  background: 'rgba(255,255,255,0.52)',
+                  border: '1px solid rgba(180,130,60,0.22)',
+                  backdropFilter: 'blur(12px)',
+                }}
+              >
+              {/* Stars */}
+              <div className="flex gap-0.5 mb-3">
+                {[...Array(review.stars ?? 5)].map((_, s) => (
+                  <Star key={s} className="w-3.5 h-3.5" style={{ color: '#b87c14', fill: '#b87c14' }} />
                 ))}
               </div>
-              <p className="text-gray-700 italic">&ldquo;{review.text}&rdquo;</p>
+
+              {/* Review text */}
+              <p
+                className="font-body font-light text-sm italic leading-relaxed mb-4"
+                style={{ color: 'rgba(21,32,51,0.75)' }}
+              >
+                &ldquo;{review.text}&rdquo;
+              </p>
+
+              {/* Tags */}
               {review.tags.length > 0 && (
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-1.5 mb-4">
                   {review.tags.map((tag, t) => (
-                    <span key={t} className="px-2 py-1 text-xs rounded-full bg-primary/10 text-primary">{tag}</span>
+                    <span
+                      key={t}
+                      className="font-body text-[11px] font-medium px-2.5 py-0.5 rounded-full"
+                      style={{ background: 'rgba(160,100,40,0.14)', color: '#7a4a18' }}
+                    >
+                      {tag}
+                    </span>
                   ))}
                 </div>
               )}
-              <div className="mt-4 flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold text-xs">
+
+              {/* Author */}
+              <div className="flex items-center gap-3 pt-3 border-t" style={{ borderColor: 'rgba(21,32,51,0.07)' }}>
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 font-body font-semibold text-xs text-primary"
+                  style={{ background: 'rgba(160,100,40,0.18)', color: '#7a4a18' }}
+                >
                   {getInitials(review.name)}
                 </div>
-                <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-gray-900">{review.name}</span>
-                  {review.date && <span className="text-xs text-gray-500">{review.date}</span>}
+                <div>
+                  <p className="font-body font-medium text-xs" style={{ color: '#152033' }}>{review.name}</p>
+                  {review.date && (
+                    <p className="font-body text-[11px]" style={{ color: 'rgba(21,32,51,0.45)' }}>{review.date}</p>
+                  )}
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-        <div className="text-center mt-12">
-          <a
-            href="https://www.facebook.com/kamplambingan/reviews"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-primary font-semibold hover:underline"
-          >
-            See more reviews on Facebook
-            <span className="material-icons text-sm">arrow_forward</span>
-          </a>
-        </div>
+              </motion.div>
+            ))}
+          </div>
+
+          <motion.div variants={ITEM} className="text-center mt-12">
+            <a
+              href={content.facebookUrl || 'https://www.facebook.com'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 font-body font-medium text-sm hover:opacity-80 transition-colors"
+              style={{ color: '#7a4a18' }}
+            >
+              See more reviews on Facebook
+              <span className="material-icons text-base">arrow_forward</span>
+            </a>
+          </motion.div>
+        </motion.div>
       </div>
     </section>
   );

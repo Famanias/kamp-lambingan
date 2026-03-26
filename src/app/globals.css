@@ -1,27 +1,222 @@
 @import "tailwindcss";
 
 @theme inline {
+  /* Nature teal palette */
   --color-primary: #14b881;
-  --color-background-light: #f6f8f7;
-  --color-background-dark: #11211c;
+  --color-primary-dark: #0d9268;
+  --color-background: #f5f9f7;
+  --color-background-light: #f5f9f7;
+  --color-background-alt: #eaf5f0;
+  --color-foreground: #152033;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  section {
+    scroll-margin-top: 80px;
+  }
+}
+
+@layer components {
+  /* Custom font utilities */
+  .font-heading {
+    font-family: 'Instrument Serif', serif;
+  }
+  .font-body {
+    font-family: 'Barlow', sans-serif;
+  }
+
+  /* ─── Nature Glassmorphism — subtle ─── */
+  .nature-glass {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06),
+                inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .nature-glass::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: linear-gradient(
+      135deg,
+      rgba(16, 185, 129, 0.25) 0%,
+      rgba(45, 212, 191, 0.15) 40%,
+      rgba(255, 255, 255, 0) 70%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box,
+                  linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* ─── Nature Glassmorphism — strong ─── */
+  .nature-glass-strong {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(32px);
+    -webkit-backdrop-filter: blur(32px);
+    border: 1px solid rgba(255, 255, 255, 0.95);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .nature-glass-strong::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.5px;
+    background: linear-gradient(
+      135deg,
+      rgba(16, 185, 129, 0.35) 0%,
+      rgba(45, 212, 191, 0.22) 45%,
+      rgba(255, 255, 255, 0) 70%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box,
+                  linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
 }
 
 @keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* FAQ accordion arrow rotation */
-details[open] .faq-arrow {
-  transform: rotate(180deg);
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
-html {
-  scroll-behavior: smooth;
+/* Subtle float for nav pill */
+@keyframes nav-float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-3px); }
+}
+
+/* Slow parallax drift for section background images */
+@keyframes parallax-drift {
+  0%, 100% { transform: scale(1.08) translateY(0px); }
+  50%       { transform: scale(1.08) translateY(-18px); }
+}
+
+/* Expanding water ring for Activities section */
+@keyframes water-ring {
+  0%   { transform: scale(0.3); opacity: 0.55; }
+  100% { transform: scale(3);   opacity: 0; }
+}
+
+/* Leaf drift for Activities decorative overlay */
+@keyframes leaf-drift {
+  0%   { transform: translateY(-30px) rotate(0deg)   translateX(0px);  opacity: 0.65; }
+  50%  { transform: translateY(50vh)  rotate(180deg) translateX(20px); opacity: 0.4; }
+  100% { transform: translateY(110vh) rotate(360deg) translateX(-8px); opacity: 0; }
+}
+
+/* Shine sweep on CTA buttons */
+@keyframes btn-shine {
+  0%   { left: -80%; }
+  100% { left: 150%; }
+}
+
+/* Utility classes */
+.nav-float {
+  animation: nav-float 5.5s ease-in-out infinite;
+}
+
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+.btn-shine::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -80%;
+  width: 60%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent);
+  transform: skewX(-18deg);
+  pointer-events: none;
+}
+.btn-shine:hover::after {
+  animation: btn-shine 0.55s ease-out forwards;
+}
+
+/* ── Ocean theme keyframes ───────────────────────────────────────── */
+
+/* Fish horizontal swim — left-to-right */
+@keyframes fish-swim-ltr {
+  from { transform: translateX(-220px); }
+  to   { transform: translateX(2300px); }
+}
+/* Fish horizontal swim — right-to-left */
+@keyframes fish-swim-rtl {
+  from { transform: translateX(2300px); }
+  to   { transform: translateX(-220px); }
+}
+/* Fish gentle sine-wave bob */
+@keyframes fish-bob {
+  0%, 100% { transform: translateY(0);     }
+  20%       { transform: translateY(-13px); }
+  45%       { transform: translateY(5px);   }
+  70%       { transform: translateY(-9px);  }
+  88%       { transform: translateY(3px);   }
+}
+/* Rising bubble */
+@keyframes bubble-rise {
+  0%   { transform: translateY(0)      translateX(0);   opacity: 0.08; }
+  30%  { transform: translateY(-28vh)  translateX(5px); opacity: 0.06; }
+  65%  { transform: translateY(-64vh)  translateX(-4px);opacity: 0.04; }
+  100% { transform: translateY(-108vh) translateX(2px); opacity: 0;    }
+}
+/* Gentle SVG wave oscillation */
+@keyframes wave-bob {
+  0%, 100% { transform: translateY(0);    }
+  50%       { transform: translateY(-6px); }
+}
+/* Light caustic refraction blobs */
+@keyframes caustic-blob {
+  0%, 100% { transform: scale(1)    translate(0, 0);         opacity: 0.05; }
+  33%       { transform: scale(1.25) translate(20px, -14px);  opacity: 0.09; }
+  66%       { transform: scale(0.85) translate(-14px, 10px);  opacity: 0.04; }
+}
+
+/* ── Sandy ocean floor: 3D gentle water waves (FAQ / Reviews) ───── */
+/* Each keyframe keeps the rotateX fixed and only bobs on Y to stay stable */
+@keyframes seawave-far {
+  0%, 100% { transform: rotateX(72deg) translateY(0px);    }
+  50%       { transform: rotateX(72deg) translateY(-7px);   }
+}
+@keyframes seawave-mid {
+  0%, 100% { transform: rotateX(58deg) translateY(0px);    }
+  50%       { transform: rotateX(58deg) translateY(-9px);   }
+}
+@keyframes seawave-near {
+  0%, 100% { transform: rotateX(44deg) translateY(0px);    }
+  50%       { transform: rotateX(44deg) translateY(-11px);  }
+}
+@keyframes sand-grain-shimmer {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.55; }
+}
+/* Clear rising bubble for sandy sections */
+@keyframes sand-bubble-rise {
+  0%   { transform: translateY(0)      translateX(0);   opacity: 1;   }
+  25%  { transform: translateY(-22vh)  translateX(5px); opacity: 0.85; }
+  60%  { transform: translateY(-58vh)  translateX(-4px);opacity: 0.60; }
+  100% { transform: translateY(-108vh) translateX(2px); opacity: 0;   }
 }
