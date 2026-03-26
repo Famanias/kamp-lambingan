@@ -6,6 +6,9 @@ export const metadata: Metadata = {
   title: 'Kamp Lambingan – Riverside Camping in Zambales',
   description:
     'Escape to Kamp Lambingan, your premium riverside camping destination in San Antonio, Zambales. Book your stay online.',
+  icons: {
+    icon: '/favicon.ico',
+  },
   openGraph: {
     title: 'Kamp Lambingan – Riverside Camping in Zambales',
     description: 'Premium riverside camping in San Antonio, Zambales.',
