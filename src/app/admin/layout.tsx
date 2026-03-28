@@ -74,9 +74,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {user && (
         <>
           <aside
-            className={`fixed inset-y-0 left-0 z-50 w-56 bg-background-dark transform transition-transform duration-300 ease-in-out flex flex-col lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
+            className={`fixed inset-y-0 left-0 z-50 w-56 transform transition-transform duration-300 ease-in-out flex flex-col lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${
               sidebarOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
+            style={{ backgroundColor: '#0d1f14' }}
           >
             <div className="p-5 border-b border-white/10 flex items-center justify-between">
               <Link href="/admin" className="flex items-center gap-2 text-white">
