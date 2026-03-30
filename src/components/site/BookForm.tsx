@@ -54,6 +54,14 @@ export default function BookForm({ content }: BookFormProps) {
 
   const bookedDatesSet = useMemo(() => new Set(bookedDates), [bookedDates]);
 
+  const formatBookedDate = (date: string) => {
+    return new Date(`${date}T00:00:00`).toLocaleDateString('en-PH', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
@@ -204,6 +212,14 @@ export default function BookForm({ content }: BookFormProps) {
   }, [previewUrl]);
 
   useEffect(() => {
+    if (!error) return;
+    const timer = window.setTimeout(() => {
+      setError(null);
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [error]);
+
+  useEffect(() => {
     let active = true;
     const loadBookedDates = async () => {
       setBookedDatesLoading(true);
@@ -244,7 +260,21 @@ export default function BookForm({ content }: BookFormProps) {
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
+        <div
+          className="fixed top-6 right-6 z-50 max-w-sm w-[calc(100%-3rem)] bg-red-600 text-white rounded-xl shadow-lg p-4 flex items-start gap-3"
+          role="alert"
+        >
+          <span className="material-icons text-white/90 mt-0.5">error</span>
+          <div className="flex-1 text-sm font-medium">{error}</div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="text-white/80 hover:text-white transition-colors"
+            aria-label="Dismiss error"
+          >
+            <span className="material-icons text-base">close</span>
+          </button>
+        </div>
       )}
 
       {step === 1 && (
@@ -377,6 +407,28 @@ export default function BookForm({ content }: BookFormProps) {
               <p className="text-xs text-gray-500">
                 {bookedDatesLoading ? 'Checking availability...' : bookedDatesError}
               </p>
+            )}
+            {!bookedDatesLoading && !bookedDatesError && (
+              <div className="border border-red-200 bg-red-50/60 rounded-lg p-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">Booked Dates</span>
+                  <span className="text-xs text-red-600">{bookedDates.length} date(s)</span>
+                </div>
+                {bookedDates.length === 0 ? (
+                  <p className="text-xs text-red-600/80 mt-2">No booked dates yet.</p>
+                ) : (
+                  <div className="mt-2 flex flex-wrap gap-2 max-h-24 overflow-y-auto">
+                    {bookedDates.map((date) => (
+                      <span
+                        key={date}
+                        className="px-2 py-1 rounded-full bg-white text-red-700 text-xs font-medium border border-red-200"
+                      >
+                        {formatBookedDate(date)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Number of Guests *</label>
