@@ -1,4 +1,5 @@
 import { getBookings, getArchiveRetentionDays } from '@/actions/bookings';
+import { collectBookedDates } from '@/lib/booking-dates';
 import Link from 'next/link';
 import BookingsTable from './BookingsTable';
 
@@ -28,6 +29,12 @@ export default async function AdminBookingsPage({
     confirmed: allBookings.filter((b) => b.status === 'confirmed').length,
     cancelled: allBookings.filter((b) => b.status === 'cancelled').length,
   };
+
+  const bookedDates = collectBookedDates(allBookings, {
+    includeCancelled: false,
+    includeArchived: false,
+    inclusive: true,
+  });
 
   const FILTERS = [
     { key: undefined, label: 'All', count: counts.all },
@@ -76,6 +83,29 @@ export default async function AdminBookingsPage({
         <p className="text-sm text-gray-500">
           Archived bookings are hidden from the main list. You can delete them permanently here.
         </p>
+      )}
+
+      {!isArchiveView && (
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h3 className="text-sm font-semibold text-gray-800">Booked Dates</h3>
+            <span className="text-xs text-gray-500">{bookedDates.length} date(s)</span>
+          </div>
+          {bookedDates.length === 0 ? (
+            <p className="text-sm text-gray-500">No booked dates yet.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+              {bookedDates.map((date) => (
+                <span
+                  key={date}
+                  className="px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-medium"
+                >
+                  {date}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       <BookingsTable bookings={bookings} isArchiveView={isArchiveView} retentionDays={retentionDays} />

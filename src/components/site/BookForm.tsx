@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 // import ReCAPTCHA from 'react-google-recaptcha'; // re-enable when live
-import { createBooking } from '@/actions/bookings';
+import { createBooking, getBookedDates } from '@/actions/bookings';
 import { SiteContent } from '@/lib/types';
 
 interface BookFormProps {
@@ -24,6 +24,9 @@ export default function BookForm({ content }: BookFormProps) {
   const [bookingId, setBookingId] = useState<string | null>(null);
   // const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null); // re-enable when live
   const [paymentType, setPaymentType] = useState<'full' | 'downpayment'>('full');
+  const [bookedDates, setBookedDates] = useState<string[]>([]);
+  const [bookedDatesLoading, setBookedDatesLoading] = useState(true);
+  const [bookedDatesError, setBookedDatesError] = useState<string | null>(null);
 
   const packageOptions = content.packages.map((p) => p.name).concat(PACKAGE_NAMES.filter(n => !content.packages.find(p => p.name === n)));
   const uniquePackageOptions = content.packages.map((p) => p.name);
@@ -49,8 +52,67 @@ export default function BookForm({ content }: BookFormProps) {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  const bookedDatesSet = useMemo(() => new Set(bookedDates), [bookedDates]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const isRangeBooked = (start: string, end: string) => {
+    if (!start || !end || end < start) return false;
+    for (const date of bookedDates) {
+      if (date >= start && date <= end) return true;
+    }
+    return false;
+  };
+
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    if (!value) {
+      setForm((prev) => ({ ...prev, [name]: value }));
+      return;
+    }
+
+    if (bookedDatesSet.has(value)) {
+      setError('That date is already booked. Please choose another.');
+      return;
+    }
+
+    if (name === 'checkOut') {
+      if (form.checkIn && value <= form.checkIn) {
+        setError('Check-out must be after check-in.');
+        return;
+      }
+      if (form.checkIn && isRangeBooked(form.checkIn, value)) {
+        setError('Selected dates overlap with an existing booking.');
+        return;
+      }
+      setError(null);
+      setForm((prev) => ({ ...prev, checkOut: value }));
+      return;
+    }
+
+    if (name === 'checkIn') {
+      let nextCheckOut = form.checkOut;
+      const hadCheckOut = Boolean(nextCheckOut);
+      let cleared = false;
+      if (nextCheckOut && nextCheckOut <= value) {
+        nextCheckOut = '';
+        cleared = true;
+      } else if (nextCheckOut && isRangeBooked(value, nextCheckOut)) {
+        nextCheckOut = '';
+        cleared = true;
+      }
+      setForm((prev) => ({ ...prev, checkIn: value, checkOut: nextCheckOut }));
+      if (cleared && hadCheckOut) {
+        setError('Please select a new check-out date.');
+      } else {
+        setError(null);
+      }
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -79,8 +141,16 @@ export default function BookForm({ content }: BookFormProps) {
       setError('Please fill in all required fields.');
       return;
     }
-    if (new Date(form.checkOut) <= new Date(form.checkIn)) {
+    if (form.checkOut <= form.checkIn) {
       setError('Check-out must be after check-in.');
+      return;
+    }
+    if (bookedDatesLoading) {
+      setError('Checking date availability. Please wait...');
+      return;
+    }
+    if (bookedDatesSet.has(form.checkIn) || bookedDatesSet.has(form.checkOut) || isRangeBooked(form.checkIn, form.checkOut)) {
+      setError('Selected dates are already booked. Please choose different dates.');
       return;
     }
     setError(null);
@@ -132,6 +202,25 @@ export default function BookForm({ content }: BookFormProps) {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+
+  useEffect(() => {
+    let active = true;
+    const loadBookedDates = async () => {
+      setBookedDatesLoading(true);
+      const result = await getBookedDates();
+      if (!active) return;
+      if (result.error) {
+        setBookedDates([]);
+        setBookedDatesError('Unable to load booked dates. We will validate on submit.');
+      } else {
+        setBookedDates(result.data ?? []);
+        setBookedDatesError(null);
+      }
+      setBookedDatesLoading(false);
+    };
+    loadBookedDates();
+    return () => { active = false; };
+  }, []);
 
   return (
     <div className="max-w-xl mx-auto">
@@ -265,7 +354,7 @@ export default function BookForm({ content }: BookFormProps) {
                   type="date"
                   name="checkIn"
                   value={form.checkIn}
-                  onChange={handleChange}
+                  onChange={handleDateChange}
                   required
                   min={new Date().toISOString().split('T')[0]}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40"
@@ -277,13 +366,18 @@ export default function BookForm({ content }: BookFormProps) {
                   type="date"
                   name="checkOut"
                   value={form.checkOut}
-                  onChange={handleChange}
+                  onChange={handleDateChange}
                   required
                   min={form.checkIn || new Date().toISOString().split('T')[0]}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
             </div>
+            {(bookedDatesLoading || bookedDatesError) && (
+              <p className="text-xs text-gray-500">
+                {bookedDatesLoading ? 'Checking availability...' : bookedDatesError}
+              </p>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Number of Guests *</label>
               <input

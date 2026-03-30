@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/lib/supabase/server';
+import { collectBookedDates } from '@/lib/booking-dates';
 
 export interface BookingInput {
   guest_name: string;
@@ -36,6 +37,30 @@ export async function createBooking(formData: FormData) {
     payment_type: ((formData.get('paymentType') as string) === 'downpayment' ? 'downpayment' : 'full'),
     amount_due: (formData.get('amountDue') as string) || undefined,
   };
+
+  if (!input.check_in || !input.check_out) {
+    return { success: false, error: 'Check-in and check-out dates are required.', id: null, reference: null };
+  }
+  if (input.check_out <= input.check_in) {
+    return { success: false, error: 'Check-out must be after check-in.', id: null, reference: null };
+  }
+
+  // Prevent double-booking for the same date range
+  const { data: conflicts, error: conflictError } = await supabase
+    .from('bookings')
+    .select('id')
+    .neq('status', 'cancelled')
+    .eq('is_archived', false)
+    .lte('check_in', input.check_out)
+    .gte('check_out', input.check_in)
+    .limit(1);
+
+  if (conflictError) {
+    return { success: false, error: conflictError.message, id: null, reference: null };
+  }
+  if (conflicts && conflicts.length > 0) {
+    return { success: false, error: 'Selected dates are already booked. Please choose different dates.', id: null, reference: null };
+  }
 
   // Upload receipt first if present
   const receiptFile = formData.get('receipt') as File | null;
@@ -309,6 +334,23 @@ export async function getAllBookingsForAnalytics() {
     .order('created_at', { ascending: true });
   if (error) return { data: [], error: error.message };
   return { data: data ?? [], error: null };
+}
+
+export async function getBookedDates() {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('check_in, check_out, status, is_archived')
+    .neq('status', 'cancelled')
+    .eq('is_archived', false);
+
+  if (error) return { data: [], error: error.message };
+  const bookedDates = collectBookedDates(data ?? [], {
+    includeCancelled: false,
+    includeArchived: false,
+    inclusive: true,
+  });
+  return { data: bookedDates, error: null };
 }
 
 export async function getBooking(id: string) {
