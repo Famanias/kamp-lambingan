@@ -11,6 +11,7 @@ interface BookFormProps {
 }
 
 const PACKAGE_NAMES = ['Package A', 'Package B', 'Package C'];
+const BOOKED_DATES_PAGE_SIZE = 10;
 
 export default function BookForm({ content }: BookFormProps) {
   const searchParams = useSearchParams();
@@ -27,6 +28,7 @@ export default function BookForm({ content }: BookFormProps) {
   const [bookedDates, setBookedDates] = useState<string[]>([]);
   const [bookedDatesLoading, setBookedDatesLoading] = useState(true);
   const [bookedDatesError, setBookedDatesError] = useState<string | null>(null);
+  const [bookedDatesPage, setBookedDatesPage] = useState(1);
 
   const packageOptions = content.packages.map((p) => p.name).concat(PACKAGE_NAMES.filter(n => !content.packages.find(p => p.name === n)));
   const uniquePackageOptions = content.packages.map((p) => p.name);
@@ -53,6 +55,11 @@ export default function BookForm({ content }: BookFormProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const bookedDatesSet = useMemo(() => new Set(bookedDates), [bookedDates]);
+  const bookedDatesPageCount = Math.max(1, Math.ceil(bookedDates.length / BOOKED_DATES_PAGE_SIZE));
+  const visibleBookedDates = bookedDates.slice(
+    (bookedDatesPage - 1) * BOOKED_DATES_PAGE_SIZE,
+    bookedDatesPage * BOOKED_DATES_PAGE_SIZE
+  );
 
   const formatBookedDate = (date: string) => {
     return new Date(`${date}T00:00:00`).toLocaleDateString('en-PH', {
@@ -218,6 +225,10 @@ export default function BookForm({ content }: BookFormProps) {
     }, 5000);
     return () => window.clearTimeout(timer);
   }, [error]);
+
+  useEffect(() => {
+    setBookedDatesPage((prev) => Math.min(prev, Math.max(1, Math.ceil(bookedDates.length / BOOKED_DATES_PAGE_SIZE))));
+  }, [bookedDates]);
 
   useEffect(() => {
     let active = true;
@@ -417,16 +428,46 @@ export default function BookForm({ content }: BookFormProps) {
                 {bookedDates.length === 0 ? (
                   <p className="text-xs text-red-600/80 mt-2">No booked dates yet.</p>
                 ) : (
-                  <div className="mt-2 flex flex-wrap gap-2 max-h-24 overflow-y-auto">
-                    {bookedDates.map((date) => (
-                      <span
-                        key={date}
-                        className="px-2 py-1 rounded-full bg-white text-red-700 text-xs font-medium border border-red-200"
-                      >
-                        {formatBookedDate(date)}
-                      </span>
-                    ))}
-                  </div>
+                  <>
+                    <div className="mt-2 flex flex-wrap gap-2 min-h-[2rem]">
+                      {visibleBookedDates.map((date) => (
+                        <span
+                          key={date}
+                          className="px-2 py-1 rounded-full bg-white text-red-700 text-xs font-medium border border-red-200"
+                        >
+                          {formatBookedDate(date)}
+                        </span>
+                      ))}
+                    </div>
+                    {bookedDates.length > BOOKED_DATES_PAGE_SIZE && (
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <p className="text-xs text-red-600/80">
+                          Showing {(bookedDatesPage - 1) * BOOKED_DATES_PAGE_SIZE + 1} to {Math.min(bookedDatesPage * BOOKED_DATES_PAGE_SIZE, bookedDates.length)} of {bookedDates.length}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setBookedDatesPage((prev) => Math.max(1, prev - 1))}
+                            disabled={bookedDatesPage === 1}
+                            className="px-3 py-1 rounded-md border border-red-200 bg-white text-xs font-medium text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Prev
+                          </button>
+                          <span className="text-xs font-medium text-red-700">
+                            {bookedDatesPage} / {bookedDatesPageCount}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setBookedDatesPage((prev) => Math.min(bookedDatesPageCount, prev + 1))}
+                            disabled={bookedDatesPage === bookedDatesPageCount}
+                            className="px-3 py-1 rounded-md border border-red-200 bg-white text-xs font-medium text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
