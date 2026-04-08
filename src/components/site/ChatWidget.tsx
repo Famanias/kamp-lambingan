@@ -8,13 +8,49 @@ const transport = new DefaultChatTransport({ api: '/api/chat' });
 
 const SUGGESTED_QUESTIONS = [
   'What packages do you offer?',
-  'How do I book a stay?',
+  'I want to make a reservation',
   'What activities are available?',
   'Are pets allowed?',
 ];
 
 const getMessageText = (m: UIMessage) =>
   m.parts.filter(isTextUIPart).map((p) => p.text).join('');
+
+type BookingResult = {
+  success: boolean;
+  reference?: string;
+  amount_due?: string;
+  error?: string;
+};
+
+function BookingConfirmCard({ result }: { result: BookingResult }) {
+  if (!result.success) {
+    return (
+      <div className="mt-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-xs text-red-700">
+        ?? {result.error ?? 'Something went wrong. Please try again.'}
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 text-xs space-y-1">
+      <p className="font-semibold text-green-800">? Booking Submitted!</p>
+      <p className="text-green-700">
+        Reference: <span className="font-bold tracking-widest">{result.reference}</span>
+      </p>
+      {result.amount_due && (
+        <p className="text-green-700">
+          Amount due: <strong>{result.amount_due}</strong>
+        </p>
+      )}
+      <p className="text-green-600 leading-relaxed">
+        Our team will contact you within 24 hours with GCash payment details to confirm your reservation.
+      </p>
+      <a href="/my-bookings" className="inline-block mt-1 text-primary underline font-medium">
+        Track your booking ?
+      </a>
+    </div>
+  );
+}
 
 export default function ChatWidget() {
   const [open, setOpen] = useState(false);
@@ -26,7 +62,6 @@ export default function ChatWidget() {
 
   const isLoading = status === 'submitted' || status === 'streaming';
 
-  // Seed a welcome message on first open
   useEffect(() => {
     if (open && !hasOpened) {
       setHasOpened(true);
@@ -37,7 +72,7 @@ export default function ChatWidget() {
           parts: [
             {
               type: 'text',
-              text: "Hi there! 👋 I'm the Kamp Lambingan assistant. How can I help you today?",
+              text: "Hi there! ?? I'm the Kamp Lambingan assistant. I can answer questions and even help you book a reservation. How can I help you today?",
             },
           ],
         } as UIMessage,
@@ -45,7 +80,6 @@ export default function ChatWidget() {
     }
   }, [open, hasOpened, setMessages]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     if (open) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -64,8 +98,7 @@ export default function ChatWidget() {
     sendMessage({ text: question });
   };
 
-  const showSuggestions =
-    messages.length === 1 && messages[0].role === 'assistant';
+  const showSuggestions = messages.length === 1 && messages[0].role === 'assistant';
 
   return (
     <>
@@ -104,24 +137,47 @@ export default function ChatWidget() {
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
-                    m.role === 'user'
-                      ? 'bg-primary text-white rounded-br-sm'
-                      : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                  }`}
-                >
-                  {getMessageText(m)}
-                </div>
-              </div>
-            ))}
+            {messages.map((m) => {
+              const text = getMessageText(m);
 
-            {/* Suggested questions — shown only right after welcome */}
+              const bookingToolPart = m.role === 'assistant'
+                ? m.parts.find(
+                    (p) =>
+                      p.type === 'dynamic-tool' &&
+                      (p as { type: string; toolName?: string }).toolName === 'createBooking' &&
+                      (p as { state: string }).state === 'output-available'
+                  )
+                : undefined;
+
+              const bookingResult =
+                bookingToolPart && (bookingToolPart as { state: string; output?: unknown }).state === 'output-available'
+                  ? ((bookingToolPart as { output: unknown }).output as BookingResult)
+                  : undefined;
+
+              return (
+                <div
+                  key={m.id}
+                  className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div className={`${m.role === 'user' ? 'max-w-[85%]' : 'w-full'}`}>
+                    {text && (
+                      <div
+                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                          m.role === 'user'
+                            ? 'bg-primary text-white rounded-br-sm'
+                            : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                        }`}
+                      >
+                        {text}
+                      </div>
+                    )}
+                    {bookingResult && <BookingConfirmCard result={bookingResult} />}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Suggested questions */}
             {showSuggestions && !isLoading && (
               <div className="space-y-1.5 pt-1">
                 {SUGGESTED_QUESTIONS.map((q) => (
@@ -140,18 +196,9 @@ export default function ChatWidget() {
             {isLoading && (
               <div className="flex justify-start">
                 <div className="bg-gray-100 px-4 py-2.5 rounded-2xl rounded-bl-sm flex gap-1 items-center">
-                  <span
-                    className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
-                    style={{ animationDelay: '0ms' }}
-                  />
-                  <span
-                    className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
-                    style={{ animationDelay: '150ms' }}
-                  />
-                  <span
-                    className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
-                    style={{ animationDelay: '300ms' }}
-                  />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
               </div>
             )}

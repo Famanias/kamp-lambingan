@@ -51,7 +51,7 @@ export default function Hero({ content }: { content: SiteContent }) {
             <img
               src={mediaSrc}
               alt="Kamp Lambingan riverside escape"
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover brightness-50"
               fetchPriority="high"
             />
           )
@@ -95,7 +95,7 @@ export default function Hero({ content }: { content: SiteContent }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.3, duration: 0.7 }}
           className="font-body font-light max-w-xl mx-auto mb-10 leading-relaxed"
-          style={{ color: 'rgba(255,255,255,0.88)', fontSize: '1.0625rem' }}
+          style={{ color: 'rgba(255,255,255,0.88)', fontSize: '1.5rem' }}
         >
           {content.heroSubtitle}
         </motion.p>
@@ -132,7 +132,7 @@ export default function Hero({ content }: { content: SiteContent }) {
             className="mt-10 flex items-center gap-3"
           >
             <span className="w-8 h-px bg-primary/50" />
-            <span className="font-body text-xs font-medium text-primary/90 tracking-wider">
+            <span className="font-body text-lg font-light text-primary/90 tracking-wider">
               {content.tagline}
             </span>
             <span className="w-8 h-px bg-primary/50" />

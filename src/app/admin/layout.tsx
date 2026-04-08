@@ -18,60 +18,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const supabase = createClient();
     
+    // onAuthStateChange fires immediately from the cached session (no HTTP call)
+    // so there's no blocking delay before the UI renders.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      setLoading(false);
     });
-
-    // Also check current session
-    const checkAuth = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      setUser(user);
-      setLoading(false);
-    };
-
-    checkAuth();
 
     return () => subscription.unsubscribe();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin inline-block">
-            <span className="material-icons text-4xl text-primary">hourglass_empty</span>
-          </div>
-          <p className="text-gray-600 mt-4">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Allow login page to render without auth
-  if (!user && !isLoginPage) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600">Redirecting to login...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      {/* Sidebar - only show for authenticated users */}
-      {user && (
+      {/* Sidebar - only show for non-login pages (middleware already enforces auth) */}
+      {!isLoginPage && (
         <>
           <aside
             className={`fixed inset-y-0 left-0 z-50 w-56 transform transition-transform duration-300 ease-in-out flex flex-col lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 ${

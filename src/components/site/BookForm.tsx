@@ -337,8 +337,8 @@ export default function BookForm({ content }: BookFormProps) {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
               >
                 <option value="">Select a package</option>
-                {content.packages.map((pkg) => (
-                  <option key={pkg.name} value={pkg.name}>{pkg.name} — {pkg.price}</option>
+                {content.packages.map((pkg, i) => (
+                  <option key={i} value={pkg.name}>{pkg.name} — {pkg.price}</option>
                 ))}
               </select>
             </div>

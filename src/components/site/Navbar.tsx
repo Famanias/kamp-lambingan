@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
-import { Menu, X, ArrowUpRight } from 'lucide-react';
+import { Menu, X, ArrowUpRight, BookOpen } from 'lucide-react';
 import { SiteContent } from '@/lib/types';
 
 const NAV_LINKS = [
@@ -71,6 +71,13 @@ export default function Navbar({ content }: { content: SiteContent }) {
             {/* Right: CTA + Mobile toggle */}
             <div className="flex items-center gap-2">
               <Link
+                href="/my-bookings"
+                className="hidden sm:inline-flex items-center gap-1.5 border border-primary/30 text-primary px-4 py-2 rounded-full font-body font-medium text-sm hover:bg-primary/10 transition-colors"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                My Booking
+              </Link>
+              <Link
                 href="/book"
                 className="hidden sm:inline-flex items-center gap-1.5 bg-primary text-white px-5 py-2 rounded-full font-body font-medium text-sm shadow-sm shadow-primary/25 hover:bg-primary/90 transition-colors"
               >
@@ -111,9 +118,17 @@ export default function Navbar({ content }: { content: SiteContent }) {
                 </a>
               ))}
               <Link
+                href="/my-bookings"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center justify-center gap-2 mt-2 border border-primary/30 text-primary px-6 py-3 rounded-full font-body font-medium text-sm hover:bg-primary/10 transition-colors"
+              >
+                <BookOpen className="w-4 h-4" />
+                My Booking
+              </Link>
+              <Link
                 href="/book"
                 onClick={() => setMenuOpen(false)}
-                className="flex items-center justify-center gap-2 mt-3 pt-3 border-t border-gray-100 bg-primary text-white px-6 py-3 rounded-full font-body font-medium text-sm hover:bg-primary/90 transition-colors"
+                className="flex items-center justify-center gap-2 mt-1 pt-3 border-t border-gray-100 bg-primary text-white px-6 py-3 rounded-full font-body font-medium text-sm hover:bg-primary/90 transition-colors"
               >
                 Book Your Stay <ArrowUpRight className="w-4 h-4" />
               </Link>
