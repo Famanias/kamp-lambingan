@@ -1,6 +1,8 @@
 ﻿'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import Image from 'next/image';
 import { motion, useInView, type Variants } from 'framer-motion';
 import { SiteContent, Villa } from '@/lib/types';
 import { ChevronLeft, ChevronRight, X, Maximize2, Users, MapPin } from 'lucide-react';
@@ -31,9 +33,9 @@ function Lightbox({ images, startIndex, onClose }: { images: string[]; startInde
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = ''; };
   }, [onClose, prev, next]);
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-[200] flex items-center justify-center"
       style={{ background: 'rgba(21,32,51,0.92)', backdropFilter: 'blur(8px)' }}
       onClick={onClose}
     >
@@ -74,7 +76,8 @@ function Lightbox({ images, startIndex, onClose }: { images: string[]; startInde
           ))}
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -93,11 +96,13 @@ function VillaCard({ villa }: { villa: Villa }) {
         <div className="relative h-56 bg-background-alt flex-shrink-0 overflow-hidden">
           {images.length > 0 ? (
             <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src={images[current]}
                 alt={`${villa.name} photo ${current + 1}`}
-                className="w-full h-full object-cover cursor-zoom-in transition-transform duration-500 hover:scale-105"
+                className="object-cover cursor-zoom-in transition-transform duration-500 hover:scale-105"
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                unoptimized
                 onClick={() => setLightboxIdx(current)}
               />
               {images.length > 1 && (

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { SiteContent } from '@/lib/types';
@@ -47,12 +48,14 @@ export default function Hero({ content }: { content: SiteContent }) {
               src={mediaSrc}
             />
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={mediaSrc}
               alt="Kamp Lambingan riverside escape"
-              className="w-full h-full object-cover brightness-50"
+              className="object-cover brightness-50"
+              fill
+              sizes="100vw"
               fetchPriority="high"
+              unoptimized
             />
           )
         ) : (
