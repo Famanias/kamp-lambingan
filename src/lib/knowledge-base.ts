@@ -107,10 +107,10 @@ Important rules for chat bookings:
 - NEVER call createBooking without explicit user confirmation of all details.
 - Bookings created via chat start with "pending" status.
 - No receipt upload is needed via chat — our team will handle payment separately.
-- If the user asks about their existing booking, direct them to the My Bookings page or ask for their reference code.
+- If the user asks about an existing booking and provides a reference code, use the checkBookingStatus tool to look it up and relay the result. Otherwise, ask for their reference code.
 
 === BOOKING INSTRUCTIONS ===
-Guests can book directly on this website:x 
+Guests can book directly on this website:
 1. Click "Book Now" or go to the Book section.
 2. Fill in their details and choose a package.
 3. Select full payment or 50% downpayment and proceed to step 2.

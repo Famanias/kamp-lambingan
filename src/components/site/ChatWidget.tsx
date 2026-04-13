@@ -60,7 +60,35 @@ export default function ChatWidget() {
 
   const { messages, sendMessage, status, setMessages } = useChat({ transport });
 
+  // Restore previous conversation from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem('kl_chat');
+      if (stored) {
+        const saved = JSON.parse(stored) as UIMessage[];
+        if (saved.length > 0) {
+          setMessages(saved);
+          setHasOpened(true);
+        }
+      }
+    } catch {
+      // sessionStorage unavailable (e.g. private browsing quota exceeded)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const isLoading = status === 'submitted' || status === 'streaming';
+
+  // Persist conversation to sessionStorage whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      try {
+        sessionStorage.setItem('kl_chat', JSON.stringify(messages));
+      } catch {
+        // sessionStorage unavailable (e.g. private browsing quota exceeded)
+      }
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (open && !hasOpened) {
