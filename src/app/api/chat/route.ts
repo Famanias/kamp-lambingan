@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const systemPrompt = buildKnowledgeBase(content);
 
   const result = streamText({
-    model: groq('llama-3.3-70b-versatile'),
+    model: groq('meta-llama/llama-4-scout-17b-16e-instruct'),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
     maxOutputTokens: 1024,
