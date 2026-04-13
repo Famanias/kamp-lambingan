@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { login } from '@/actions/auth';
 
 export const metadata = { title: 'Admin Login – Kamp Lambingan' };
@@ -21,10 +22,12 @@ export default function AdminLoginPage() {
       <div className="w-full max-w-sm relative z-10">
         {/* Branding */}
         <div className="text-center mb-8">
-          <img
+          <Image
             src="/assets/logo.png"
             alt="Kamp Lambingan"
-            className="h-16 mx-auto mb-5 drop-shadow-lg"
+            width={64}
+            height={64}
+            className="h-16 w-auto mx-auto mb-5 drop-shadow-lg"
           />
           <h1 className="text-2xl font-bold text-white mb-1">Admin Login</h1>
           <p className="text-white/40 text-sm tracking-wide">Kamp Lambingan CMS</p>

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import Image from 'next/image';
 import { X, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface GalleryClientProps {
@@ -36,22 +38,24 @@ export default function GalleryClient({ images }: GalleryClientProps) {
           <button
             key={i}
             onClick={() => setLightboxIndex(i)}
-            className="group nature-glass rounded-2xl overflow-hidden aspect-[4/3] w-full focus:outline-none focus:ring-2 focus:ring-primary/40 hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
+            className="group relative nature-glass rounded-2xl overflow-hidden aspect-[4/3] w-full focus:outline-none focus:ring-2 focus:ring-primary/40 hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <Image
               src={src}
               alt={`Kamp Lambingan photo ${i + 1}`}
-              className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+              className="object-cover transform group-hover:scale-105 transition-transform duration-500"
+              fill
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+              unoptimized
             />
           </button>
         ))}
       </div>
 
       {/* Lightbox */}
-      {lightboxIndex !== null && (
+      {lightboxIndex !== null && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
+          className="fixed inset-0 z-[200] flex items-center justify-center"
           style={{ background: 'rgba(21,32,51,0.92)', backdropFilter: 'blur(8px)' }}
           onClick={close}
         >
@@ -99,7 +103,8 @@ export default function GalleryClient({ images }: GalleryClientProps) {
               {lightboxIndex + 1} / {images.length}
             </span>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

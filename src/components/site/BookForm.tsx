@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
 // import ReCAPTCHA from 'react-google-recaptcha'; // re-enable when live
 import { createBooking, getBookedDates } from '@/actions/bookings';
@@ -537,11 +538,13 @@ export default function BookForm({ content }: BookFormProps) {
               {content.gcashQrImage && (
                 <div className="flex flex-col items-center gap-2">
                   <p className="text-xs text-gray-600 font-medium text-center">Option 1: Scan QR Code</p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Image
                     src={content.gcashQrImage}
                     alt="GCash QR Code"
-                    className="w-80 h-80 object-contain border border-gray-200 rounded-lg bg-white p-2"
+                    width={320}
+                    height={320}
+                    className="object-contain border border-gray-200 rounded-lg bg-white p-2"
+                    unoptimized
                   />
                 </div>
               )}

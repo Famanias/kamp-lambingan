@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useEffect } from 'react';
+import Image from 'next/image';
 
 const VIDEO_RE = /\.(mp4|webm|ogg|m3u8)(\?|#|$)/i;
 const HLS_RE   = /\.m3u8(\?|#|$)/i;
@@ -71,13 +72,15 @@ export default function SectionBackground({
           playsInline
         />
       ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <Image
           src={src}
           alt=""
           role="presentation"
-          className="w-full h-full object-cover"
+          className="object-cover"
+          fill
+          sizes="100vw"
           style={{ animation: 'parallax-drift 24s ease-in-out infinite' }}
+          unoptimized
         />
       )}
       <div className="absolute inset-0" style={overlayStyle ?? DEFAULT_OVERLAY} />

@@ -1,9 +1,11 @@
 import { createGroq } from '@ai-sdk/groq';
 import { streamText, convertToModelMessages, UIMessage, tool, stepCountIs } from 'ai';
+import { randomBytes } from 'crypto';
 import { z } from 'zod';
 import { getContent } from '@/actions/content';
 import { buildKnowledgeBase } from '@/lib/knowledge-base';
 import { createClient } from '@/lib/supabase/server';
+import type { SiteContent } from '@/lib/types';
 
 const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY,
@@ -12,17 +14,66 @@ const groq = createGroq({
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
+// ─── Module-level knowledge base cache (5-minute TTL) ─────────────────────────────
+// Eliminates per-message DB queries. Refreshes automatically every 5 minutes.
+// On Vercel, this cache is per Lambda instance (warm invocations benefit most).
+let _cachedContent: SiteContent | null = null;
+let _cachedSystemPrompt: string | null = null;
+let _cacheExpiresAt = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function getCachedContent(): Promise<SiteContent> {
+  if (_cachedContent && Date.now() < _cacheExpiresAt) return _cachedContent;
+  _cachedContent = await getContent();
+  _cachedSystemPrompt = buildKnowledgeBase(_cachedContent);
+  _cacheExpiresAt = Date.now() + CACHE_TTL_MS;
+  return _cachedContent;
+}
+
+async function getCachedSystemPrompt(): Promise<string> {
+  if (_cachedSystemPrompt && Date.now() < _cacheExpiresAt) return _cachedSystemPrompt;
+  await getCachedContent(); // populates both caches
+  return _cachedSystemPrompt!;
+}
+
+// ─── Simple in-memory rate limiter ───────────────────────────────────────────
+// 20 messages per minute per IP. Per-instance only (sufficient for low traffic).
+const ipRateLimiter = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_COUNT = 20;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = ipRateLimiter.get(ip);
+  if (!entry || now > entry.resetAt) {
+    ipRateLimiter.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  if (entry.count >= RATE_LIMIT_COUNT) return true;
+  entry.count++;
+  return false;
+}
+
 export async function POST(req: Request) {
+  // Rate limit by IP (20 messages per minute)
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  if (isRateLimited(ip)) {
+    return new Response(JSON.stringify({ error: 'Too many requests. Please wait a moment.' }), {
+      status: 429,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
   const { messages } = (await req.json()) as { messages: UIMessage[] };
 
-  const content = await getContent();
-  const systemPrompt = buildKnowledgeBase(content);
+  const systemPrompt = await getCachedSystemPrompt();
 
   const result = streamText({
     model: groq('meta-llama/llama-4-scout-17b-16e-instruct'),
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
-    maxOutputTokens: 1024,
+    maxOutputTokens: 2048,
+    temperature: 0.7,
     stopWhen: stepCountIs(5),
     tools: {
       checkAvailability: tool({
@@ -57,6 +108,24 @@ export async function POST(req: Request) {
         },
       }),
 
+      checkBookingStatus: tool({
+        description:
+          'Look up an existing booking by reference code to check its status. Use this when the user asks about their booking and provides a reference code (e.g. KL-A3F7B2).',
+        inputSchema: z.object({
+          reference: z.string().describe('The booking reference code, e.g. KL-A3F7B2'),
+        }),
+        execute: async ({ reference }) => {
+          const supabase = await createClient();
+          const { data, error } = await supabase
+            .from('bookings')
+            .select('reference, guest_name, package_name, check_in, check_out, pax, status, created_at')
+            .ilike('reference', reference.trim())
+            .single();
+          if (error || !data) return { found: false, message: 'No booking found with that reference code.' };
+          return { found: true, ...data };
+        },
+      }),
+
       createBooking: tool({
         description:
           'Create a booking reservation for the guest after collecting all required details and confirming availability. IMPORTANT: You MUST call checkAvailability first. Only call this once you have: guest_name, guest_email, guest_phone, package_name, check_in, check_out, pax, and payment_type. Confirm all details with the user before calling this.',
@@ -88,8 +157,8 @@ export async function POST(req: Request) {
             return { success: false, error: 'Those dates are no longer available. Please choose different dates.' };
           }
 
-          // Find package price for amount_due
-          const siteContent = await getContent();
+          // Use cached content for package price lookup (no extra DB call)
+          const siteContent = await getCachedContent();
           const pkg = siteContent.packages.find(
             (p) => p.name.toLowerCase() === package_name.toLowerCase()
           );
@@ -99,7 +168,8 @@ export async function POST(req: Request) {
             ? `₱${(payment_type === 'downpayment' ? priceNum * 0.5 : priceNum).toLocaleString()}`
             : undefined;
 
-          const reference = 'KL-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+          // Cryptographically secure reference generation
+          const reference = 'KL-' + randomBytes(3).toString('hex').toUpperCase();
 
           const { data, error } = await supabase
             .from('bookings')
@@ -124,17 +194,42 @@ export async function POST(req: Request) {
             return { success: false, error: error.message };
           }
 
-          // Send confirmation email if configured
+          // Send guest confirmation + admin notification emails
           if (process.env.RESEND_API_KEY) {
             try {
               const { Resend } = await import('resend');
               const resend = new Resend(process.env.RESEND_API_KEY);
+              const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
+              // Guest confirmation email
               await resend.emails.send({
                 from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
                 to: guest_email,
                 subject: 'We received your booking request!',
-                html: `<h2>Hi ${guest_name}! 🌿</h2><p>We received your booking via our chat assistant for <strong>${package_name}</strong>.</p><div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:16px;border-radius:8px;margin:16px 0;"><p style="margin:0 0 4px 0;font-size:12px;color:#6b7280;">Your Booking Reference</p><p style="margin:0;font-size:24px;font-weight:bold;letter-spacing:2px;color:#166534;">${reference}</p></div><p><strong>Check-in:</strong> ${check_in}</p><p><strong>Check-out:</strong> ${check_out}</p><p><strong>Guests:</strong> ${pax}</p><p><strong>Payment:</strong> ${payment_type === 'downpayment' ? `Downpayment (50%)` : 'Full Payment'}${amountDue ? ` — <strong>${amountDue}</strong>` : ''}</p><p><strong>Note:</strong> Payment via GCash is required to confirm your reservation. Our team will contact you on <strong>${guest_phone}</strong> within 24 hours with GCash payment details.</p><p>Check your booking status at <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/my-bookings">/my-bookings</a>.</p><p>— Kamp Lambingan Team</p>`,
+                html: `<h2>Hi ${guest_name}! 🌿</h2><p>We received your booking via our chat assistant for <strong>${package_name}</strong>.</p><div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:16px;border-radius:8px;margin:16px 0;"><p style="margin:0 0 4px 0;font-size:12px;color:#6b7280;">Your Booking Reference</p><p style="margin:0;font-size:24px;font-weight:bold;letter-spacing:2px;color:#166534;">${reference}</p></div><p><strong>Check-in:</strong> ${check_in}</p><p><strong>Check-out:</strong> ${check_out}</p><p><strong>Guests:</strong> ${pax}</p><p><strong>Payment:</strong> ${payment_type === 'downpayment' ? `Downpayment (50%)` : 'Full Payment'}${amountDue ? ` — <strong>${amountDue}</strong>` : ''}</p><p><strong>Note:</strong> Payment via GCash is required to confirm your reservation. Our team will contact you on <strong>${guest_phone}</strong> within 24 hours with GCash payment details.</p><p>Check your booking status at <a href="${siteUrl}/my-bookings">/my-bookings</a>.</p><p>— Kamp Lambingan Team</p>`,
               });
+
+              // Admin notification (previously missing for chat bookings)
+              if (process.env.ADMIN_EMAIL) {
+                await resend.emails.send({
+                  from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
+                  to: process.env.ADMIN_EMAIL,
+                  subject: `New booking (via chat) from ${guest_name}`,
+                  html: `
+                    <h2>New Booking Request (via Chat)</h2>
+                    <p><strong>Name:</strong> ${guest_name}</p>
+                    <p><strong>Email:</strong> ${guest_email}</p>
+                    <p><strong>Phone:</strong> ${guest_phone}</p>
+                    <p><strong>Package:</strong> ${package_name}</p>
+                    <p><strong>Check-in:</strong> ${check_in}</p>
+                    <p><strong>Check-out:</strong> ${check_out}</p>
+                    <p><strong>Guests:</strong> ${pax}</p>
+                    <p><strong>Payment:</strong> ${payment_type === 'downpayment' ? 'Downpayment (50%)' : 'Full Payment'}${amountDue ? ` — ${amountDue}` : ''}</p>
+                    ${notes ? `<p><strong>Notes:</strong> ${notes}</p>` : ''}
+                    <p><a href="${siteUrl}/admin/bookings/${data.id}">View booking →</a></p>
+                  `,
+                });
+              }
             } catch (_) {
               // Don't fail booking if email fails
             }
