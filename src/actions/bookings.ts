@@ -70,7 +70,7 @@ export async function createBooking(formData: FormData) {
     return { success: false, error: 'Too many booking attempts. Please try again in 10 minutes.', id: null, reference: null };
   }
 
-  const supabase = await createClient();
+  const supabase = getServiceClient();
 
   // Generate cryptographically secure reference code (CSPRNG)
   const reference = 'KL-' + crypto.randomBytes(4).toString('hex').toUpperCase();
