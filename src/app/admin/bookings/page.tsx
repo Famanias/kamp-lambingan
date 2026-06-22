@@ -1,7 +1,8 @@
-import { getBookings, getArchiveRetentionDays } from '@/actions/bookings';
+import { getBookings, getArchiveRetentionDays, getDateCapacities } from '@/actions/bookings';
 import { collectBookedDates } from '@/lib/booking-dates';
 import Link from 'next/link';
 import BookingsTable from './BookingsTable';
+import CapacityManager from './CapacityManager';
 
 export const metadata = { title: 'Bookings – Admin' };
 export const dynamic = 'force-dynamic';
@@ -14,9 +15,10 @@ export default async function AdminBookingsPage({
   const { status: filterStatus, view } = await searchParams;
   const isArchiveView = view === 'archive';
 
-  const [{ data: allBookings }, retentionDays] = await Promise.all([
+  const [{ data: allBookings }, retentionDays, { data: customCapacities }] = await Promise.all([
     getBookings(isArchiveView),
     getArchiveRetentionDays(),
+    getDateCapacities(),
   ]);
 
   const bookings = filterStatus && !isArchiveView
@@ -106,6 +108,10 @@ export default async function AdminBookingsPage({
             </div>
           )}
         </div>
+      )}
+
+      {!isArchiveView && (
+        <CapacityManager customCapacities={customCapacities} bookings={allBookings} />
       )}
 
       <BookingsTable bookings={bookings} isArchiveView={isArchiveView} retentionDays={retentionDays} />

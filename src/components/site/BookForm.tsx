@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { useSearchParams, useRouter } from 'next/navigation';
 // import ReCAPTCHA from 'react-google-recaptcha'; // re-enable when live
-import { createBooking, getBookedDates } from '@/actions/bookings';
+import { createBooking, getFullyBookedDates } from '@/actions/bookings';
 import { SiteContent } from '@/lib/types';
 
 interface BookFormProps {
@@ -235,7 +235,7 @@ export default function BookForm({ content }: BookFormProps) {
     let active = true;
     const loadBookedDates = async () => {
       setBookedDatesLoading(true);
-      const result = await getBookedDates();
+      const result = await getFullyBookedDates();
       if (!active) return;
       if (result.error) {
         setBookedDates([]);

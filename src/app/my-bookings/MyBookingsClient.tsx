@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState } from 'react';
 import { getBookingByReference } from '@/actions/bookings';
@@ -84,7 +84,7 @@ export default function MyBookingsClient() {
         <label className="block text-sm font-medium text-gray-700 mb-1">Booking Reference Code</label>
         <p className="text-xs text-gray-400 mb-3">
           Your reference was sent to your email after booking (e.g.{' '}
-          <span className="font-mono font-semibold">KL-A3F7B2</span>).
+          <span className="font-mono font-semibold">KL-AB2AS5SQ</span>).
         </p>
         <form onSubmit={handleSearch} className="flex gap-3">
           <input
@@ -92,8 +92,8 @@ export default function MyBookingsClient() {
             value={reference}
             onChange={(e) => setReference(e.target.value.toUpperCase())}
             required
-            placeholder="KL-XXXXXX"
-            maxLength={9}
+            placeholder="KL-XXXXXXXX"
+            maxLength={21}
             className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm font-mono tracking-widest uppercase"
           />
           <button
