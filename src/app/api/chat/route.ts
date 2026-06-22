@@ -84,34 +84,47 @@ export async function POST(req: Request) {
     tools: {
       checkAvailability: tool({
         description:
-          'Check whether a date range is available for booking. Call this before creating a booking or when the user asks about availability for specific dates.',
+          'Check guest capacity and availability for a date range. Availability is determined by remaining guest capacity, not by dates being completely booked. Call this when the user asks about availability for specific dates or before creating a booking.',
         inputSchema: z.object({
           check_in: z.string().describe('Check-in date in YYYY-MM-DD format'),
           check_out: z.string().describe('Check-out date in YYYY-MM-DD format'),
+          pax: z.number().int().min(1).optional().describe('Number of guests requested'),
         }),
-        execute: async ({ check_in, check_out }) => {
+        execute: async ({ check_in, check_out, pax }) => {
           if (check_out <= check_in) {
             return { available: false, reason: 'Check-out must be after check-in.' };
           }
-          // Use service-role client since public select is disabled
-          const supabase = getServiceClient();
-          const { data: conflicts } = await supabase
-            .from('bookings')
-            .select('check_in, check_out')
-            .neq('status', 'cancelled')
-            .eq('is_archived', false)
-            .lte('check_in', check_out)
-            .gte('check_out', check_in)
-            .limit(5);
+          const { getCapacityForDates } = await import('@/actions/bookings');
+          const details = await getCapacityForDates(check_in, check_out);
 
-          if (conflicts && conflicts.length > 0) {
-            return {
-              available: false,
-              reason: 'Those dates overlap with an existing booking.',
-              conflicts: conflicts.map((c) => ({ check_in: c.check_in, check_out: c.check_out })),
-            };
+          if (details.length === 0) {
+            return { available: false, reason: 'Invalid date range.' };
           }
-          return { available: true };
+
+          // maxGuestsAllowed is the minimum remaining capacity across all dates in the requested range
+          const maxGuestsAllowed = details.reduce((min, d) => Math.min(min, d.remainingCapacity), Infinity);
+          
+          // maximumCapacity is the minimum maximum capacity across the range
+          const maximumCapacity = details.reduce((min, d) => Math.min(min, d.maximumCapacity), Infinity);
+          
+          // bookedGuests is the maximum booked guests on any date in the range
+          const bookedGuests = details.reduce((max, d) => Math.max(max, d.bookedGuests), 0);
+          
+          // isFullyBooked if any date in the range is fully booked (remaining capacity is 0)
+          const isFullyBooked = details.some((d) => d.isFullyBooked);
+
+          const requestedPax = pax ?? 1;
+          const available = maxGuestsAllowed >= requestedPax;
+
+          return {
+            available,
+            maxGuestsAllowed,
+            maximumCapacity,
+            bookedGuests,
+            remainingCapacity: maxGuestsAllowed,
+            isFullyBooked,
+            details,
+          };
         },
       }),
 

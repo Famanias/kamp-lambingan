@@ -1,50 +1,45 @@
-# Security Remediation Walkthrough
+# Booking Capacity System Implementation Walkthrough
 
-We have successfully implemented the security changes outlined in the revised Security Remediation Plan. The system is now fully secured with proper Role-Based Access Control (RBAC), database-enforced security rules, safe file upload processing, HTML escaping, and rate limiting.
-
-Here is a summary of the files modified and created:
-
-## 1. Auth & Admin Security Helpers
-- **[server.ts]**:
-  - Added `getServiceClient()` to securely handle service-role tasks server-side.
-  - Added `checkAdmin(userId)` to query the database `admins` table and verify admin status.
-  - Added `requireAdmin()` helper that checks session validity and admin status, throwing an error if unauthorized.
-- **[withAdminAction.ts]**:
-  - Created a helper wrapper to safely execute callbacks under admin-level security checks.
-
-## 2. Next.js Routing Guard Activation
-- **[proxy.ts]**:
-  - Updated the proxy session guard to verify if the session user is in the database `admins` table, and redirect unauthenticated/non-admin users attempting to access `/admin/*` back to `/admin/login`.
-
-## 3. Server Actions Hardening
-- **[bookings.ts]**:
-  - Gated all administrative Server Actions (e.g. `archiveBooking`, `updateBookingStatus`, `deleteBookingForever`) using `requireAdmin()`.
-  - Deleted the unused `getBookingsByEmail` action to prevent email enumeration/PII harvesting.
-  - Hardened reference lookups to use exact matches (`.eq('reference', ...)`) instead of wildcard-susceptible `.ilike`.
-  - Upgraded booking reference generation to use a cryptographically secure pseudo-random number generator (`crypto.randomBytes`).
-  - Added strict whitelist-based file size and MIME-type validation for receipt uploads.
-  - Moved public guest database SELECT calls (`getBooking`, `getBookingByReference`, `getBookedDates`) to use the service-role client on the server, so public RLS SELECT policies on the `bookings` table can be completely disabled for the public `anon` key.
-  - Recalculates and overrides `amount_due` server-side to prevent price tampering.
-  - HTML-escapes all user-supplied inputs before rendering Resend notification emails.
-  - Catch conflict errors code `23P11` (Postgres exclusion violation) to show friendly errors for double-bookings.
-  - Sanitized verbose Postgres database logs and error messages.
-  - Added sliding-window in-memory rate limiting to public actions (`createBooking`, `getBookingByReference`).
-- **[content.ts]**:
-  - Protected `uploadImage`, `listImages`, and `saveContent` actions using `requireAdmin()`.
-  - Hardened image upload validation (size limit, MIME type whitelist).
-
-## 4. Secure File Serving API
-- **[route.ts]**:
-  - Created a secure API route at `/api/admin/receipt/[filename]` that restricts access to authenticated admins, validates filenames against path traversal, and returns a 15-minute temporary signed URL from the private receipts storage bucket.
-
-## 5. SQL Migration & Documentation
-- **[bookings-table.sql]**:
-  - Added SQL to create the `admins` table.
-  - Updated all RLS policies on `bookings`, `site_content`, and `app_settings` to verify admin credentials (`auth.uid() IN (SELECT user_id FROM public.admins)`).
-  - Disabled public RLS SELECT policies on `bookings` completely.
-  - Changed the `receipts` storage bucket to private (`public = false`) and updated RLS rules to allow anon INSERT but authenticated admin-only SELECT.
-  - Added the `bookings_date_overlap_exclude` exclusion constraint for atomic double-booking prevention.
-- **[docs.md]**:
-  - Updated architectural references of `proxy.ts` to reflect the session guard logic.
+We have successfully implemented the Booking Capacity System in accordance with the revised implementation plan. The booking system now enforces guest-capacity limits date-by-date, supports custom max capacities, expires stale pending bookings, checks capacity inside concurrency-safe database RPC calls, and includes AI guardrails.
 
 ---
+
+## Summary of Changes
+
+### 1. Database Schema Update
+- **[bookings-capacity.sql](file:///d:/repos/kamp-lambingan/bookings-capacity.sql)**:
+  - Created a script to define the `date_capacities` table for date-specific guest limit overrides.
+  - Enabled Row-Level Security (RLS) on `date_capacities` with public `SELECT` access and admin-only write permissions.
+  - Adjusted the `bookings.status` CHECK constraint to allow the `'expired'` status.
+  - Created a concurrency-safe, atomic SQL function `create_booking_safe` to lock the `bookings` table, validate remaining capacity day-by-day (excluding check-out day), and insert new bookings in a single transaction.
+
+### 2. Backend Server Actions & Logic
+- **[bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts)**:
+  - Added capacity server actions: `getDateCapacities()`, `setDateCapacity(date, maxCapacity)`, and `deleteDateCapacity(date)` (all admin gated).
+  - Implemented `expireStaleBookings(supabase)` to automatically mark pending bookings older than 30 minutes as `expired` before any capacity calculations.
+  - Implemented `getCapacityForDates(checkIn, checkOut)` to fetch custom and default capacities, count current bookings (excluding cancelled, archived, and expired ones), and return detailed daily capacities.
+  - Renamed `getBookedDates()` to `getFullyBookedDates()` to return dates where the remaining capacity has reached zero.
+  - Hardened `createBooking(formData)` to execute the insertion inside the safe, atomic `create_booking_safe` RPC database transaction.
+
+### 3. Frontend & Booking Form
+- **[BookForm.tsx](file:///d:/repos/kamp-lambingan/src/components/site/BookForm.tsx)**:
+  - Switched from `getBookedDates()` to `getFullyBookedDates()` to retrieve dates that are fully booked and disable them in the calendar.
+
+### 4. AI Assistant Component
+- **[route.ts](file:///d:/repos/kamp-lambingan/src/app/api/chat/route.ts)**:
+  - Updated the `checkAvailability` tool to return comprehensive capacity info (`available`, `maxGuestsAllowed`, `maximumCapacity`, `bookedGuests`, `remainingCapacity`, `isFullyBooked`, `details`).
+- **[knowledge-base.ts](file:///d:/repos/kamp-lambingan/src/lib/knowledge-base.ts)**:
+  - Configured system prompt instructions instructing the AI assistant to query guest capacity, communicate remaining capacity to guests, present a complete summary before booking, and require explicit confirmation (e.g. "Yes", "Confirm", "Proceed", "Book it") before triggering the booking tool.
+
+### 5. Admin Dashboard UI
+- **[page.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/page.tsx)**:
+  - Updated the bookings tab to parallelly load custom capacities and render the manager component.
+- **[CapacityManager.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/CapacityManager.tsx)**:
+  - Added a responsive dashboard card allowing admins to pick a date, set a capacity limit, list all active custom capacity settings, view current utilization (booked vs remaining spots), and reset entries to defaults.
+
+---
+
+## Action Item: Run SQL Migrations
+
+> [!IMPORTANT]
+> To activate the capacity table and transaction safety in the database, copy the contents of [bookings-capacity.sql](file:///d:/repos/kamp-lambingan/bookings-capacity.sql) and execute it inside your **Supabase SQL Editor** in the dashboard.

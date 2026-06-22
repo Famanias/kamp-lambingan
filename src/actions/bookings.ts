@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { createClient, getServiceClient, requireAdmin } from '@/lib/supabase/server';
-import { collectBookedDates } from '@/lib/booking-dates';
+import { collectBookedDates, expandDateRange } from '@/lib/booking-dates';
 import { getContent } from './content';
 import crypto from 'crypto';
 
@@ -114,44 +114,47 @@ export async function createBooking(formData: FormData) {
     return { success: false, error: 'Pricing validation failed.', id: null, reference: null };
   }
 
-  // Insert booking (PostgreSQL exclusion constraint blocks double-bookings atomically)
-  const { data, error } = await supabase
-    .from('bookings')
-    .insert({
-      guest_name: input.guest_name,
-      guest_email: input.guest_email,
-      guest_phone: input.guest_phone,
-      package_name: input.package_name,
-      check_in: input.check_in,
-      check_out: input.check_out,
-      pax: input.pax,
-      notes: input.notes ?? null,
-      status: 'pending',
-      reference,
-      payment_type: input.payment_type,
-      amount_due: input.amount_due ?? null,
-    })
-    .select('id')
-    .single();
+  // 1. Recalculate capacity / expire stale bookings
+  await expireStaleBookings(supabase);
 
-  if (error) {
-    if (error.code === '23P11') {
-      return { success: false, error: 'Selected dates are already booked. Please choose different dates.', id: null, reference: null };
-    }
-    console.error('[createBooking] DB insert error:', error.message);
+  // 2. Perform validation and insertion inside a concurrency-safe database function
+  const { data: rpcResult, error: rpcError } = await supabase
+    .rpc('create_booking_safe', {
+      p_guest_name: input.guest_name,
+      p_guest_email: input.guest_email,
+      p_guest_phone: input.guest_phone,
+      p_package_name: input.package_name,
+      p_check_in: input.check_in,
+      p_check_out: input.check_out,
+      p_pax: input.pax,
+      p_notes: input.notes ?? null,
+      p_reference: reference,
+      p_payment_type: input.payment_type,
+      p_amount_due: input.amount_due ?? null,
+    });
+
+  if (rpcError) {
+    console.error('[createBooking] RPC error:', rpcError.message);
     return { success: false, error: 'Failed to complete booking. Please try again.', id: null, reference: null };
   }
+
+  const resultObj = rpcResult as { success: boolean; id?: string; error?: string };
+  if (!resultObj.success) {
+    return { success: false, error: resultObj.error || 'Failed to complete booking.', id: null, reference: null };
+  }
+
+  const bookingId = resultObj.id!;
 
   // Upload receipt after insertion
   const receiptFile = formData.get('receipt') as File | null;
   if (receiptFile && receiptFile.size > 0) {
-    const receiptUrl = await uploadReceipt(data.id, receiptFile);
+    const receiptUrl = await uploadReceipt(bookingId, receiptFile);
     if (receiptUrl) {
       const serviceClient = getServiceClient();
       const { error: updateErr } = await serviceClient
         .from('bookings')
         .update({ receipt_url: receiptUrl })
-        .eq('id', data.id);
+        .eq('id', bookingId);
 
       if (updateErr) {
         console.error('[createBooking] DB update receipt URL error:', updateErr.message);
@@ -210,7 +213,7 @@ export async function createBooking(formData: FormData) {
             <p><strong>Guests:</strong> ${input.pax}</p>
             <p><strong>Payment:</strong> ${input.payment_type === 'downpayment' ? 'Downpayment (50%)' : 'Full Payment'}${safeAmountDue ? ` — ${safeAmountDue}` : ''}</p>
             ${safeNotes ? `<p><strong>Notes:</strong> ${safeNotes}</p>` : ''}
-            <p><a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/admin/bookings/${data.id}">View booking →</a></p>
+            <p><a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/admin/bookings/${bookingId}">View booking →</a></p>
           `,
         });
       }
@@ -219,7 +222,7 @@ export async function createBooking(formData: FormData) {
     }
   }
 
-  return { success: true, error: null, id: data.id, reference };
+  return { success: true, error: null, id: bookingId, reference };
 }
 
 export async function getBookingByReference(reference: string) {
@@ -462,21 +465,40 @@ export async function getAllBookingsForAnalytics() {
   return { data: data ?? [], error: null };
 }
 
-export async function getBookedDates() {
-  const supabase = getServiceClient(); // service role to query since public select is disabled
-  const { data, error } = await supabase
+export async function getFullyBookedDates() {
+  const supabase = getServiceClient();
+  await expireStaleBookings(supabase);
+
+  // Query active bookings to find date range to scan
+  const { data: bookings, error } = await supabase
     .from('bookings')
-    .select('check_in, check_out, status, is_archived')
+    .select('check_in, check_out')
     .neq('status', 'cancelled')
+    .neq('status', 'expired')
     .eq('is_archived', false);
 
-  if (error) return { data: [], error: 'Failed to load booked dates.' };
-  const bookedDates = collectBookedDates(data ?? [], {
-    includeCancelled: false,
-    includeArchived: false,
-    inclusive: true,
+  if (error || !bookings) {
+    return { data: [], error: 'Failed to load booked dates.' };
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  let minDate = todayStr;
+  let maxDate = new Date();
+  maxDate.setFullYear(maxDate.getFullYear() + 1); // 1 year from now default
+  let maxDateStr = maxDate.toISOString().split('T')[0];
+
+  bookings.forEach((b) => {
+    if (b.check_in && b.check_in < minDate) minDate = b.check_in;
+    if (b.check_out && b.check_out > maxDateStr) maxDateStr = b.check_out;
   });
-  return { data: bookedDates, error: null };
+
+  // Calculate capacity for all dates in this range
+  const capacityInfo = await getCapacityForDates(minDate, maxDateStr);
+  const fullyBookedDates = capacityInfo
+    .filter((info) => info.isFullyBooked)
+    .map((info) => info.date);
+
+  return { data: fullyBookedDates, error: null };
 }
 
 export async function getBooking(id: string) {
@@ -589,4 +611,131 @@ export async function uploadReceipt(bookingId: string, file: File): Promise<stri
   // Return the secure admin receipt proxy URL instead of public URL
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
   return `${siteUrl}/api/admin/receipt/${bookingId}.${ext}`;
+}
+
+const PENDING_EXPIRATION_MS = 30 * 60 * 1000; // 30 minutes
+
+async function expireStaleBookings(supabase: any) {
+  try {
+    const expirationTime = new Date(Date.now() - PENDING_EXPIRATION_MS).toISOString();
+    await supabase
+      .from('bookings')
+      .update({ status: 'expired' })
+      .eq('status', 'pending')
+      .lt('created_at', expirationTime);
+  } catch (err) {
+    console.error('[expireStaleBookings] failed:', err);
+  }
+}
+
+export async function getCapacityForDates(checkIn: string, checkOut: string) {
+  const supabase = getServiceClient();
+  await expireStaleBookings(supabase);
+
+  // Accommodation-style occupancy: check_in <= date < check_out
+  const requestedDates = expandDateRange(checkIn, checkOut, false);
+
+  if (requestedDates.length === 0) {
+    return [];
+  }
+
+  // Fetch all custom capacities in the requested dates
+  const { data: customCapacitiesData } = await supabase
+    .from('date_capacities')
+    .select('date, max_capacity')
+    .in('date', requestedDates);
+
+  const customCapacities = new Map<string, number>();
+  customCapacitiesData?.forEach((c) => {
+    customCapacities.set(c.date, c.max_capacity);
+  });
+
+  // Fetch overlapping bookings
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('check_in, check_out, pax, status, is_archived')
+    .neq('status', 'cancelled')
+    .neq('status', 'expired')
+    .eq('is_archived', false)
+    .lt('check_in', checkOut)
+    .gt('check_out', checkIn);
+
+  // Map each date to booked guests count
+  const bookedGuestsMap = new Map<string, number>();
+  bookings?.forEach((b) => {
+    const dates = expandDateRange(b.check_in, b.check_out, false);
+    dates.forEach((date) => {
+      if (requestedDates.includes(date)) {
+        bookedGuestsMap.set(date, (bookedGuestsMap.get(date) || 0) + b.pax);
+      }
+    });
+  });
+
+  // Build the result
+  return requestedDates.map((date) => {
+    const maximumCapacity = customCapacities.get(date) ?? 50;
+    const bookedGuests = bookedGuestsMap.get(date) || 0;
+    const remainingCapacity = Math.max(0, maximumCapacity - bookedGuests);
+    const isFullyBooked = remainingCapacity <= 0;
+
+    return {
+      date,
+      maximumCapacity,
+      bookedGuests,
+      remainingCapacity,
+      isFullyBooked,
+    };
+  });
+}
+
+export async function getDateCapacities() {
+  try {
+    await requireAdmin();
+  } catch (err: any) {
+    return { data: [], error: err.message || 'Unauthorized' };
+  }
+
+  const supabase = getServiceClient();
+  const { data, error } = await supabase
+    .from('date_capacities')
+    .select('*')
+    .order('date', { ascending: true });
+
+  if (error) return { data: [], error: 'Failed to load date capacities.' };
+  return { data: data ?? [], error: null };
+}
+
+export async function setDateCapacity(date: string, maxCapacity: number) {
+  try {
+    await requireAdmin();
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Unauthorized' };
+  }
+
+  const supabase = getServiceClient();
+  const { error } = await supabase
+    .from('date_capacities')
+    .upsert({ date, max_capacity: maxCapacity }, { onConflict: 'date' });
+
+  if (error) return { success: false, error: 'Failed to set capacity.' };
+  revalidatePath('/admin/bookings');
+  return { success: true };
+}
+
+export async function deleteDateCapacity(date: string) {
+  try {
+    await requireAdmin();
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Unauthorized' };
+  }
+
+  const supabase = getServiceClient();
+  const { error } = await supabase
+    .from('date_capacities')
+    .delete()
+    .eq('date', date);
+
+  if (error) return { success: false, error: 'Failed to delete capacity.' };
+  revalidatePath('/admin/bookings');
+  return { success: true };
 }
