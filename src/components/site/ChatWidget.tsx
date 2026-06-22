@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, isTextUIPart, UIMessage } from 'ai';
@@ -16,6 +16,97 @@ const SUGGESTED_QUESTIONS = [
 const getMessageText = (m: UIMessage) =>
   m.parts.filter(isTextUIPart).map((p) => p.text).join('');
 
+function renderInlineFormatting(text: string): React.ReactNode[] {
+  const boldParts = text.split('**');
+  
+  return boldParts.map((boldPart, boldIdx) => {
+    const isBold = boldIdx % 2 === 1;
+    const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+    let match;
+    let lastIndex = 0;
+    const parts: React.ReactNode[] = [];
+    
+    linkRegex.lastIndex = 0;
+    
+    while ((match = linkRegex.exec(boldPart)) !== null) {
+      const matchIndex = match.index;
+      if (matchIndex > lastIndex) {
+        parts.push(boldPart.substring(lastIndex, matchIndex));
+      }
+      const linkText = match[1];
+      const linkUrl = match[2];
+      parts.push(
+        <a 
+          key={matchIndex} 
+          href={linkUrl} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="underline text-emerald-600 hover:text-emerald-700 font-medium"
+        >
+          {linkText}
+        </a>
+      );
+      lastIndex = linkRegex.lastIndex;
+    }
+    
+    if (lastIndex < boldPart.length) {
+      parts.push(boldPart.substring(lastIndex));
+    }
+    
+    if (isBold) {
+      return <strong key={boldIdx} className="font-bold">{parts}</strong>;
+    }
+    return <span key={boldIdx}>{parts}</span>;
+  });
+}
+
+function parseMarkdown(text: string): React.ReactNode {
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let currentList: React.ReactNode[] = [];
+
+  const flushList = (key: number) => {
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={`ul-${key}`} className="list-dash pl-4 my-1.5 space-y-1 text-xs">
+          {currentList}
+        </ul>
+      );
+      currentList = [];
+    }
+  };
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    const isBullet = trimmed.startsWith('- ') || trimmed.startsWith('* ');
+
+    let content = isBullet ? trimmed.slice(2) : line;
+    const inlineRendered = renderInlineFormatting(content);
+
+    if (isBullet) {
+      currentList.push(
+        <li key={`li-${index}`} className="list-item">
+          {inlineRendered}
+        </li>
+      );
+    } else {
+      flushList(index);
+      if (trimmed === '') {
+        elements.push(<div key={`space-${index}`} className="h-2" />);
+      } else {
+        elements.push(
+          <p key={`p-${index}`} className="text-xs leading-relaxed">
+            {inlineRendered}
+          </p>
+        );
+      }
+    }
+  });
+
+  flushList(lines.length);
+  return <div className="space-y-1.5">{elements}</div>;
+}
+
 type BookingResult = {
   success: boolean;
   reference?: string;
@@ -27,13 +118,13 @@ function BookingConfirmCard({ result }: { result: BookingResult }) {
   if (!result.success) {
     return (
       <div className="mt-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-xs text-red-700">
-        ?? {result.error ?? 'Something went wrong. Please try again.'}
+        ❌ {result.error ?? 'Something went wrong. Please try again.'}
       </div>
     );
   }
   return (
     <div className="mt-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 text-xs space-y-1">
-      <p className="font-semibold text-green-800">? Booking Submitted!</p>
+      <p className="font-semibold text-green-800">✅ Booking Submitted!</p>
       <p className="text-green-700">
         Reference: <span className="font-bold tracking-widest">{result.reference}</span>
       </p>
@@ -46,7 +137,7 @@ function BookingConfirmCard({ result }: { result: BookingResult }) {
         Our team will contact you within 24 hours with GCash payment details to confirm your reservation.
       </p>
       <a href="/my-bookings" className="inline-block mt-1 text-primary underline font-medium">
-        Track your booking ?
+        Track your booking 🔍
       </a>
     </div>
   );
@@ -100,7 +191,7 @@ export default function ChatWidget() {
           parts: [
             {
               type: 'text',
-              text: "Hi there! ?? I'm the Kamp Lambingan assistant. I can answer questions and even help you book a reservation. How can I help you today?",
+              text: "Hi there! 🌿 I'm the Kamp Lambingan assistant. I can answer questions and even help you book a reservation. How can I help you today?",
             },
           ],
         } as UIMessage,
@@ -190,13 +281,13 @@ export default function ChatWidget() {
                   <div className={`${m.role === 'user' ? 'max-w-[85%]' : 'w-full'}`}>
                     {text && (
                       <div
-                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
                           m.role === 'user'
-                            ? 'bg-primary text-white rounded-br-sm'
+                            ? 'bg-primary text-white rounded-br-sm whitespace-pre-wrap'
                             : 'bg-gray-100 text-gray-800 rounded-bl-sm'
                         }`}
                       >
-                        {text}
+                        {m.role === 'user' ? text : parseMarkdown(text)}
                       </div>
                     )}
                     {bookingResult && <BookingConfirmCard result={bookingResult} />}

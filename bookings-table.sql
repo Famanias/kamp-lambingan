@@ -3,6 +3,19 @@
 -- Run this in the Supabase SQL editor
 -- ============================================================
 
+-- Enable btree_gist extension for date overlap exclusion constraints
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+-- Create admins table for Role-Based Access Control
+CREATE TABLE IF NOT EXISTS public.admins (
+  user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE
+);
+
+ALTER TABLE public.admins ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow authenticated read admins" ON public.admins
+  FOR SELECT TO authenticated USING (true);
+
 -- 1. Create the bookings table
 CREATE TABLE IF NOT EXISTS public.bookings (
   id            uuid DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -23,15 +36,17 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   updated_at    timestamptz NOT NULL DEFAULT now()
 );
 
--- If the table already exists, add the reference column:
--- ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS reference text UNIQUE;
-
 -- Add payment type and amount columns (run if table already exists):
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS payment_type text DEFAULT 'full' CHECK (payment_type IN ('full', 'downpayment'));
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS amount_due text;
-
--- Add archived_at to track when a booking was archived (for retention countdown):
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+
+-- Add database-level double-booking prevention constraint
+ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_date_overlap_exclude;
+ALTER TABLE public.bookings ADD CONSTRAINT bookings_date_overlap_exclude
+EXCLUDE USING gist (
+  daterange(check_in, check_out, '[]') WITH &&
+) WHERE (status <> 'cancelled' AND is_archived = false);
 
 -- App settings table (key/value store for admin-configurable settings)
 CREATE TABLE IF NOT EXISTS public.app_settings (
@@ -39,16 +54,21 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
   value text NOT NULL
 );
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow admin all on app_settings" ON public.app_settings;
 CREATE POLICY "Allow admin all on app_settings" ON public.app_settings
-  USING (true) WITH CHECK (true);
+  FOR ALL
+  TO authenticated
+  USING (auth.uid() IN (SELECT user_id FROM public.admins))
+  WITH CHECK (auth.uid() IN (SELECT user_id FROM public.admins));
+
 -- Default: archive retention = 7 days
 INSERT INTO public.app_settings (key, value)
   VALUES ('archive_retention_days', '7')
   ON CONFLICT (key) DO NOTHING;
 
 -- ============================================================
--- Site content table (stores all editable site content as JSONB,
--- including gcashQrImage for the GCash QR code shown in the booking form)
+-- Site content table
 -- ============================================================
 CREATE TABLE IF NOT EXISTS public.site_content (
   id         integer PRIMARY KEY,
@@ -59,64 +79,68 @@ CREATE TABLE IF NOT EXISTS public.site_content (
 ALTER TABLE public.site_content ENABLE ROW LEVEL SECURITY;
 
 -- Allow anyone (anon / guests) to READ site content (needed to display QR on booking form)
+DROP POLICY IF EXISTS "Allow public read site_content" ON public.site_content;
 CREATE POLICY "Allow public read site_content" ON public.site_content
   FOR SELECT
   TO anon
   USING (true);
 
--- Allow authenticated users (admin) to read site content
+-- Allow authenticated users to read site content
+DROP POLICY IF EXISTS "Allow admin read site_content" ON public.site_content;
 CREATE POLICY "Allow admin read site_content" ON public.site_content
   FOR SELECT
   TO authenticated
   USING (true);
 
--- Allow authenticated users (admin) to INSERT / UPDATE site content
+-- Allow admins to INSERT / UPDATE site content
+DROP POLICY IF EXISTS "Allow admin upsert site_content" ON public.site_content;
 CREATE POLICY "Allow admin upsert site_content" ON public.site_content
   FOR ALL
   TO authenticated
-  USING (true)
-  WITH CHECK (true);
+  USING (auth.uid() IN (SELECT user_id FROM public.admins))
+  WITH CHECK (auth.uid() IN (SELECT user_id FROM public.admins));
 
 -- Seed the default row so getContent() always finds id = 1
 INSERT INTO public.site_content (id, data)
   VALUES (1, '{}'::jsonb)
   ON CONFLICT (id) DO NOTHING;
 
--- 2. Enable Row Level Security
+-- 2. Enable Row Level Security on bookings
 ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
 
--- 3. RLS Policies
+-- 3. RLS Policies for bookings
 
 -- Allow anyone (anon / guests) to INSERT a new booking
+DROP POLICY IF EXISTS "Allow anon insert" ON public.bookings;
 CREATE POLICY "Allow anon insert" ON public.bookings
   FOR INSERT
   TO anon
   WITH CHECK (true);
 
--- Allow authenticated users (admin) to SELECT all bookings
+-- Allow admins to SELECT bookings
+DROP POLICY IF EXISTS "Allow admin select" ON public.bookings;
 CREATE POLICY "Allow admin select" ON public.bookings
   FOR SELECT
   TO authenticated
-  USING (true);
+  USING (auth.uid() IN (SELECT user_id FROM public.admins));
 
--- Allow anon users to SELECT their own bookings by email (for My Bookings page)
-CREATE POLICY "Allow anon select own bookings" ON public.bookings
-  FOR SELECT
-  TO anon
-  USING (true);
+-- Remove public anon select policy
+DROP POLICY IF EXISTS "Allow anon select own bookings" ON public.bookings;
 
--- Allow authenticated users (admin) to UPDATE bookings (e.g. confirm/cancel)
+-- Allow admins to UPDATE bookings
+DROP POLICY IF EXISTS "Allow admin update" ON public.bookings;
 CREATE POLICY "Allow admin update" ON public.bookings
   FOR UPDATE
   TO authenticated
-  USING (true)
-  WITH CHECK (true);
+  USING (auth.uid() IN (SELECT user_id FROM public.admins))
+  WITH CHECK (auth.uid() IN (SELECT user_id FROM public.admins));
 
--- Allow authenticated users to DELETE bookings (optional)
+-- Allow admins to DELETE bookings
+DROP POLICY IF EXISTS "Allow admin delete" ON public.bookings;
 CREATE POLICY "Allow admin delete" ON public.bookings
   FOR DELETE
   TO authenticated
-  USING (true);
+  USING (auth.uid() IN (SELECT user_id FROM public.admins));
 
 -- 4. Auto-update updated_at on row change
 CREATE OR REPLACE FUNCTION public.set_updated_at()
@@ -133,75 +157,64 @@ CREATE TRIGGER bookings_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- ============================================================
--- Storage: Create the "receipts" bucket
+-- Storage: Create the "receipts" bucket (PRIVATE)
 -- ============================================================
--- Run this in the Supabase Dashboard → Storage → New Bucket:
---   Name: receipts
---   Public: YES (so receipt images can be displayed in admin)
---
--- Or via SQL:
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('receipts', 'receipts', true)
-ON CONFLICT (id) DO NOTHING;
+VALUES ('receipts', 'receipts', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
+
+-- Clean up public select policy for receipts
+DROP POLICY IF EXISTS "Allow public read receipts" ON storage.objects;
 
 -- Storage RLS: Allow anyone to upload (INSERT) into the receipts bucket
+DROP POLICY IF EXISTS "Allow anon upload to receipts" ON storage.objects;
 CREATE POLICY "Allow anon upload to receipts" ON storage.objects
   FOR INSERT
   TO anon
   WITH CHECK (bucket_id = 'receipts');
 
--- Allow authenticated users to read all receipt objects
+-- Allow admins to read receipt objects
+DROP POLICY IF EXISTS "Allow admin read receipts" ON storage.objects;
 CREATE POLICY "Allow admin read receipts" ON storage.objects
   FOR SELECT
   TO authenticated
-  USING (bucket_id = 'receipts');
-
--- Allow public read of receipt objects (needed for public URL display)
-CREATE POLICY "Allow public read receipts" ON storage.objects
-  FOR SELECT
-  TO anon
-  USING (bucket_id = 'receipts');
+  USING (bucket_id = 'receipts' AND auth.uid() IN (SELECT user_id FROM public.admins));
 
 -- ============================================================
--- Storage: Create the "site-images" bucket
--- Used for: hero image, gallery images, villa photos,
---           and the GCash QR code uploaded via Admin → Payment
+-- Storage: Create the "site-images" bucket (PRIVATE)
 -- ============================================================
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('site-images', 'site-images', false)
 ON CONFLICT (id) DO NOTHING;
 
--- Allow authenticated users (admin) to upload site images
+-- Allow admins to upload site images
+DROP POLICY IF EXISTS "Allow admin upload to site-images" ON storage.objects;
 CREATE POLICY "Allow admin upload to site-images" ON storage.objects
   FOR INSERT
   TO authenticated
-  WITH CHECK (bucket_id = 'site-images');
+  WITH CHECK (bucket_id = 'site-images' AND auth.uid() IN (SELECT user_id FROM public.admins));
 
--- Allow authenticated users (admin) to update / replace site images
+-- Allow admins to update / replace site images
+DROP POLICY IF EXISTS "Allow admin update site-images" ON storage.objects;
 CREATE POLICY "Allow admin update site-images" ON storage.objects
   FOR UPDATE
   TO authenticated
-  USING (bucket_id = 'site-images')
-  WITH CHECK (bucket_id = 'site-images');
+  USING (bucket_id = 'site-images' AND auth.uid() IN (SELECT user_id FROM public.admins))
+  WITH CHECK (bucket_id = 'site-images' AND auth.uid() IN (SELECT user_id FROM public.admins));
 
--- Allow authenticated users (admin) to delete site images
+-- Allow admins to delete site images
+DROP POLICY IF EXISTS "Allow admin delete site-images" ON storage.objects;
 CREATE POLICY "Allow admin delete site-images" ON storage.objects
   FOR DELETE
   TO authenticated
-  USING (bucket_id = 'site-images');
+  USING (bucket_id = 'site-images' AND auth.uid() IN (SELECT user_id FROM public.admins));
 
--- Allow authenticated users to read site images (used by /api/image proxy)
+-- Allow admins to read site images
+DROP POLICY IF EXISTS "Allow admin read site-images" ON storage.objects;
 CREATE POLICY "Allow admin read site-images" ON storage.objects
   FOR SELECT
   TO authenticated
-  USING (bucket_id = 'site-images');
+  USING (bucket_id = 'site-images' AND auth.uid() IN (SELECT user_id FROM public.admins));
 
--- Note: The /api/image route uses the service-role key to generate signed URLs,
--- so anon users do NOT need direct read access to this private bucket.
-
--- ============================================================
 -- Verify
--- ============================================================
-SELECT 'bookings table created' AS status;
-SELECT tablename, rowsecurity FROM pg_tables WHERE tablename IN ('bookings', 'site_content', 'app_settings');
-SELECT id FROM storage.buckets WHERE id IN ('receipts', 'site-images');
+SELECT 'bookings schema version 2 setup completed' AS status;

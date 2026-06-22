@@ -36,9 +36,22 @@ export async function updateSession(request: NextRequest) {
     await supabase.auth.signOut();
   }
 
+  // Check if the user is an admin in the database
+  let isAdmin = false;
+  if (user) {
+    const { data } = await supabase
+      .from('admins')
+      .select('user_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (data) {
+      isAdmin = true;
+    }
+  }
+
   // Protect /admin/* routes (except /admin/login)
   if (
-    !user &&
+    (!user || !isAdmin) &&
     request.nextUrl.pathname.startsWith('/admin') &&
     !request.nextUrl.pathname.startsWith('/admin/login')
   ) {
@@ -49,3 +62,4 @@ export async function updateSession(request: NextRequest) {
 
   return supabaseResponse;
 }
+

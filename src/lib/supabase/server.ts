@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 export async function createClient() {
@@ -25,3 +26,41 @@ export async function createClient() {
     }
   );
 }
+
+export function getServiceClient() {
+  return createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
+export async function checkAdmin(userId: string): Promise<boolean> {
+  const adminClient = getServiceClient();
+  const { data, error } = await adminClient
+    .from('admins')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return false;
+  }
+  return true;
+}
+
+export async function requireAdmin() {
+  const supabase = await createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    throw new Error('Unauthorized');
+  }
+
+  const isAdmin = await checkAdmin(user.id);
+  if (!isAdmin) {
+    throw new Error('Forbidden');
+  }
+
+  return user;
+}
+
