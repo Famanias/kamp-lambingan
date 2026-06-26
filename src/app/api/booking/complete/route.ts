@@ -16,7 +16,7 @@ function escapeHtml(str: string): string {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { sessionId } = body;
+    const { sessionId, chatSessionId } = body;
 
     if (!sessionId) {
       return NextResponse.json(
@@ -196,6 +196,48 @@ export async function POST(req: Request) {
         }
       } catch (emailErr) {
         console.error('[API booking/complete] email sending failed:', emailErr);
+      }
+    }
+
+    // 9. Update chat session in Supabase if chatSessionId is provided
+    if (chatSessionId) {
+      try {
+        const { data: currentSession } = await supabase
+          .from('chat_sessions')
+          .select('state')
+          .eq('session_id', chatSessionId)
+          .maybeSingle();
+
+        const mergedState = {
+          ...(currentSession?.state || {}),
+          guest_name,
+          guest_email,
+          guest_phone,
+          package_name,
+          check_in,
+          check_out,
+          pax,
+          payment_type,
+          notes,
+          reference,
+          amount_due: amountDue,
+          booking_completed: true,
+        };
+
+        const nowStr = new Date().toISOString();
+        const expiresAtStr = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+        await supabase
+          .from('chat_sessions')
+          .update({
+            state: mergedState,
+            current_stage: 'completed',
+            updated_at: nowStr,
+            expires_at: expiresAtStr,
+          })
+          .eq('session_id', chatSessionId);
+      } catch (err) {
+        console.error('[API booking/complete] Failed to update chat session:', err);
       }
     }
 

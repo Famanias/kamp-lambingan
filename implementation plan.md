@@ -1,94 +1,448 @@
-# Token Usage Optimization for the AI Booking Assistant (Revised)
+# Hybrid AI Booking System (Form-Driven Architecture)
 
-Redesign the AI booking assistant architecture to dramatically reduce LLM token consumption while preserving conversational quality, booking reliability, and scalability. This optimization shifts persistent conversation state, stage-based workflow management, and knowledge retrieval from the LLM to the backend, and uses Supabase for session persistence to remain fully serverless-compatible.
+## Overview
 
-## User Review Required
+Redesign the AI booking experience by moving structured booking data collection entirely to the frontend while retaining the AI assistant as a conversational guide and knowledge assistant.
+
+Instead of collecting reservation details through multiple AI messages, the frontend will render interactive booking components inside the chat. The AI becomes responsible only for conversation, recommendations, explanations, and guiding the user through each step.
+
+This dramatically reduces token usage, improves reliability, and simplifies backend state management.
+
+---
+
+# User Review Required
 
 > [!IMPORTANT]
-> - **Supabase Chat Sessions Table**: We will add a new database table `chat_sessions` to store persistent state, conversation stage, and summary server-side.
-> - **SQL Execution**: The user will need to execute the SQL in [chat-sessions.sql](file:///d:/repos/kamp-lambingan/chat-sessions.sql) inside the Supabase SQL editor to create the table.
-> - **Stage-Aware Intent Routing**: We will split the knowledge base and dynamically route modules based on both the user's latest query and the current booking stage (e.g. `email_verification`).
-> - **Conversation Summary + Truncation**: We will only send the last 4–6 messages along with a backend-generated session state summary to the Groq LLM, drastically cutting token size.
-> - **Automatic State Transitions**: We will remove the `updateBookingState` tool. State and stage changes will be handled automatically by the backend upon successful execution of existing tools (`checkAvailability`, `startBookingVerification`, `verifyBookingCode`, `completeBooking`).
-> - **Interactive GCash Rendering**: The AI will no longer format structured JSON for payment instructions. Instead, the frontend will render the payment and receipt card directly from the `completeBooking` tool output.
-> - **Precise Token Monitoring**: We will use the pure JS `js-tiktoken` tokenizer to log exact input/output tokens in the server logs.
-
-## Open Questions
-
-> [!NOTE]
-> None. The proposed architecture integrates cleanly with the existing Supabase, Resend, and Groq configuration.
-
-## Proposed Changes
-
-### Database Layer
-
-#### [NEW] [chat-sessions.sql](file:///d:/repos/kamp-lambingan/chat-sessions.sql)
-Creates the `chat_sessions` table in public Supabase database with columns:
-- `id` (UUID PRIMARY KEY)
-- `session_id` (TEXT UNIQUE)
-- `state` (JSONB)
-- `conversation_summary` (TEXT)
-- `current_stage` (TEXT)
-- `created_at` (TIMESTAMPTZ)
-- `updated_at` (TIMESTAMPTZ)
-- `expires_at` (TIMESTAMPTZ)
+>
+> * Booking information will no longer be collected conversationally by the AI.
+> * The AI will trigger frontend booking components instead of asking for booking details.
+> * Booking availability, validation, email verification, payment instructions, and receipt upload will all be handled through backend APIs and frontend UI components.
+> * The AI will only receive the completed booking information after the booking form has been submitted.
+> * The `chat_sessions` table will remain, but it will store only conversational context rather than booking state.
 
 ---
 
-### Backend API & Actions
+# Goals
 
-#### [MODIFY] [route.ts](file:///d:/repos/kamp-lambingan/src/app/api/chat/route.ts)
-- **Session Management**: Load or initialize the chat session from Supabase `chat_sessions` using the client's `chatSessionId`.
-- **Automatic State Updates & Stage Transitions**:
-  - `checkAvailability` (success): updates `check_in`, `check_out`, `pax` in state, transitions stage to `booking_information`.
-  - `startBookingVerification` (success): saves full guest details and generated `sessionId`, transitions stage to `email_verification`.
-  - `verifyBookingCode` (success): updates state to verified, transitions stage to `booking_confirmation`.
-  - `completeBooking` (success): saves the reference and amount due, transitions stage to `completed`.
-- **Stage-Aware Intent Classification**:
-  - Classify the user's intent based on a combination of the current stage and keywords/intent on the latest message.
-  - Dynamically load modules (General, Packages, Policies, FAQs, Payment, Contact).
-- **Conversation Compression**:
-  - Replace the old sliding window with a combination of the current booking state/summary + the last 4–6 messages.
-- **Precise Token Monitoring**:
-  - Import `getEncoding` from `js-tiktoken`.
-  - Calculate and log exact token usage metrics (Prompt, Knowledge, Summary, History, User, Tools, Total Input, Output).
+## Primary Goals
 
-#### [MODIFY] [knowledge-base.ts](file:///d:/repos/kamp-lambingan/src/lib/knowledge-base.ts)
-- Split the monolithic knowledge base system prompt into modular functions:
-  - `getGeneralInfo()`
-  - `getPackagesInfo(packageName?: string)` (supports retrieving only the requested package description)
-  - `getPoliciesInfo(topic?: string)`
-  - `getFAQsInfo()`
-  - `getPaymentInfo()`
-  - `getContactInfo()`
-- Provide a `buildOptimizedPrompt(content, state, activeModules)` to output a compact prompt containing:
-  - Core assistant role (no workflow descriptions).
-  - The current backend booking state block.
-  - Dynamically loaded active knowledge modules.
+* Reduce booking conversations from ~43,000 input tokens to under 3,000.
+* Eliminate repetitive AI questions for structured booking data.
+* Improve booking reliability.
+* Reduce hallucinations.
+* Simplify prompts.
+* Improve overall user experience.
 
 ---
 
-### Frontend Components
+# Proposed User Flow
 
-#### [MODIFY] [ChatWidget.tsx](file:///d:/repos/kamp-lambingan/src/components/site/ChatWidget.tsx)
-- Generate a unique `chatSessionId` via `crypto.randomUUID()` and store in `sessionStorage`.
-- Include `chatSessionId` in the body payload of every `/api/chat` request.
-- Remove client-side JSON message parsing.
-- Render the `PaymentInstructionCard` automatically when the `completeBooking` tool output matches `success: true`.
+## 1. User starts conversation
+
+Example
+
+User:
+
+> I'd like to make a reservation.
+
+AI responds naturally:
+
+> I'd be happy to help. Please complete the booking form below.
+
+The frontend immediately renders a Booking Form Card.
 
 ---
 
-### Operations
+## 2. Booking Form
 
-- Periodic cleanup script or database trigger to delete chat sessions older than 30 minutes of inactivity.
+The AI does not ask individual questions.
 
-## Verification Plan
+Instead the form collects:
 
-### Automated Tests
-- Run production compilation check: `npm run build`
+* Guest name
+* Email
+* Phone number
+* Package
+* Check-in
+* Check-out
+* Number of guests
+* Notes (optional)
 
-### Manual Verification
-- Verify database read/write actions on `chat_sessions`.
-- Audit backend logs to verify that only relevant modules are loaded based on stages and intents.
-- Check that browser reload preserves conversation state.
-- Measure and print token statistics in the backend server output.
+The form performs client-side validation before submission.
+
+---
+
+## 3. Availability Check
+
+When the user submits the form:
+
+Frontend
+
+↓
+
+POST `/api/booking/check`
+
+Backend
+
+↓
+
+Validate dates
+
+↓
+
+Check guest capacity
+
+↓
+
+Return result
+
+Possible responses
+
+Available
+
+↓
+
+Continue
+
+Unavailable
+
+↓
+
+Return alternative dates
+
+The AI is not involved.
+
+---
+
+## 4. Email Verification
+
+If availability succeeds
+
+Frontend
+
+↓
+
+POST `/api/booking/start`
+
+Backend
+
+↓
+
+Generate verification code
+
+↓
+
+Store verification session
+
+↓
+
+Send email through Resend
+
+Frontend displays
+
+Verification Code Card
+
+User enters the code directly.
+
+No AI interaction required.
+
+---
+
+## 5. Verification
+
+User submits verification code.
+
+Frontend
+
+↓
+
+POST `/api/booking/verify`
+
+Backend validates
+
+If successful
+
+↓
+
+Booking Summary Card appears.
+
+---
+
+## 6. Booking Confirmation
+
+Booking Summary
+
+* Guest
+* Package
+* Dates
+* Guests
+* Total Amount
+* Downpayment / Full Payment
+
+User clicks
+
+Confirm Booking
+
+Frontend
+
+↓
+
+POST `/api/booking/complete`
+
+Backend creates booking.
+
+AI receives only:
+
+Booking completed successfully.
+
+Booking Reference:
+
+KL-XXXX
+
+The AI sends a friendly confirmation message.
+
+---
+
+## 7. Payment
+
+Backend returns
+
+* Booking Reference
+* Amount Due
+* Payment Type
+* QR Image
+
+Frontend renders
+
+Payment Instruction Card
+
+including
+
+* QR Code
+* Upload Receipt button
+
+No AI formatting required.
+
+---
+
+## 8. Receipt Upload
+
+User uploads receipt.
+
+Frontend
+
+↓
+
+POST `/api/booking/upload-receipt`
+
+Backend uploads to Supabase Storage.
+
+Booking updated.
+
+AI may simply respond:
+
+> Thank you! Your receipt has been received and is awaiting administrator review.
+
+---
+
+# AI Responsibilities
+
+The AI should only:
+
+* Answer resort questions.
+* Recommend packages.
+* Explain policies.
+* Help users navigate the booking process.
+* Summarize completed bookings.
+* Respond to unusual or free-form questions.
+
+The AI should never:
+
+* Ask for booking form fields.
+* Track booking progress.
+* Validate dates.
+* Verify email codes.
+* Check availability.
+* Generate payment instructions.
+* Handle receipt uploads.
+
+---
+
+# Backend Responsibilities
+
+The backend becomes responsible for:
+
+* Availability checking.
+* Capacity validation.
+* Booking validation.
+* Email verification.
+* Booking creation.
+* Payment handling.
+* Receipt uploads.
+* Booking status updates.
+
+All business rules are centralized.
+
+---
+
+# Frontend Components
+
+## New Components
+
+### BookingFormCard
+
+Collects all booking information.
+
+---
+
+### VerificationCard
+
+Allows entering the email verification code.
+
+---
+
+### BookingSummaryCard
+
+Displays the completed reservation before confirmation.
+
+---
+
+### PaymentInstructionCard
+
+Displays
+
+* QR code
+* Amount Due
+* Booking Reference
+* Upload Receipt button
+
+---
+
+### ReceiptUploadCard
+
+Uploads proof of payment.
+
+---
+
+# Chat API
+
+The chat endpoint no longer manages booking state.
+
+Instead it only controls conversation.
+
+The AI can request UI components.
+
+Example tool outputs
+
+```json
+{
+  "action": "showBookingForm"
+}
+```
+
+```json
+{
+  "action": "showVerificationCard"
+}
+```
+
+```json
+{
+  "action": "showPaymentCard"
+}
+```
+
+The frontend renders the corresponding component.
+
+---
+
+# Database
+
+Existing tables remain.
+
+The `chat_sessions` table becomes much simpler.
+
+Suggested contents
+
+* session_id
+* conversation_summary
+* last_intent
+* updated_at
+
+Booking information remains in booking-related tables.
+
+---
+
+# Expected Token Usage
+
+Current architecture
+
+* AI collects booking fields
+* AI tracks booking state
+* AI generates payment JSON
+
+Estimated
+
+15,000–43,000 input tokens
+
+Optimized architecture
+
+* Booking form handles structured input
+* Backend handles workflow
+* AI only explains and guides
+
+Estimated
+
+1,500–3,000 input tokens
+
+---
+
+# Benefits
+
+## User Experience
+
+* Faster booking
+* Fewer back-and-forth messages
+* Better validation
+* Immediate feedback
+
+## Reliability
+
+* No hallucinated booking details
+* No missing required fields
+* Deterministic workflow
+* Stronger validation
+
+## Performance
+
+* Dramatically lower token usage
+* Faster AI responses
+* Reduced API costs
+
+## Maintainability
+
+* Business logic isolated in backend
+* AI prompt greatly simplified
+* Easier future feature development
+
+---
+
+# Verification Plan
+
+## Automated
+
+* Build the application (`npm run build`).
+* Verify all booking APIs return expected results.
+* Verify frontend components render correctly from AI actions.
+
+## Manual
+
+* Start a booking through chat.
+* Confirm the booking form appears.
+* Submit valid and invalid data.
+* Verify availability checks.
+* Complete email verification.
+* Confirm booking creation.
+* Upload a payment receipt.
+* Verify the admin dashboard reflects the new booking and uploaded receipt.
+* Measure total AI token usage for a complete booking flow and compare it with the previous implementation.
