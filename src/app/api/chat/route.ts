@@ -3,35 +3,28 @@ import { streamText, convertToModelMessages, UIMessage, tool, stepCountIs } from
 import { randomBytes } from 'crypto';
 import { z } from 'zod';
 import { getContent } from '@/actions/content';
-import { buildKnowledgeBase } from '@/lib/knowledge-base';
-import { getServiceClient, createClient } from '@/lib/supabase/server';
+import { buildOptimizedPrompt } from '@/lib/knowledge-base';
+import { getServiceClient } from '@/lib/supabase/server';
 import type { SiteContent } from '@/lib/types';
+import { getEncoding } from 'js-tiktoken';
 
 const groq = createGroq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// Allow streaming responses up to 30 seconds
+// Allow streaming responses up to 120 seconds
 export const maxDuration = 120;
 
 // ─── Module-level knowledge base cache (5-minute TTL) ─────────────────────────────
 let _cachedContent: SiteContent | null = null;
-let _cachedSystemPrompt: string | null = null;
 let _cacheExpiresAt = 0;
 const CACHE_TTL_MS = 5 * 60 * 1000;
 
 async function getCachedContent(): Promise<SiteContent> {
   if (_cachedContent && Date.now() < _cacheExpiresAt) return _cachedContent;
   _cachedContent = await getContent();
-  _cachedSystemPrompt = buildKnowledgeBase(_cachedContent);
   _cacheExpiresAt = Date.now() + CACHE_TTL_MS;
   return _cachedContent;
-}
-
-async function getCachedSystemPrompt(): Promise<string> {
-  if (_cachedSystemPrompt && Date.now() < _cacheExpiresAt) return _cachedSystemPrompt;
-  await getCachedContent(); // populates both caches
-  return _cachedSystemPrompt!;
 }
 
 // ─── Simple in-memory rate limiter ───────────────────────────────────────────
@@ -60,8 +53,158 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;');
 }
 
+const getMessageText = (m: UIMessage) =>
+  m.parts.filter((p) => p.type === 'text').map((p) => (p as any).text).join('');
+
+// ─── Token Counting Helper ────────────────────────────────────────────────────
+function countTokens(text: string): number {
+  try {
+    const enc = getEncoding('cl100k_base');
+    return enc.encode(text).length;
+  } catch (err) {
+    return Math.ceil(text.length / 4);
+  }
+}
+
+// ─── Chat Session Database Sync ────────────────────────────────────────────────
+async function getOrCreateChatSession(sessionId: string) {
+  const supabase = getServiceClient();
+  const now = new Date();
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30 mins expiry
+
+  // Cleanup expired sessions
+  try {
+    await supabase.from('chat_sessions').delete().lt('expires_at', now.toISOString());
+  } catch (err) {
+    console.error('[Chat Session Cleanup] Error:', err);
+  }
+
+  // Try retrieving existing session
+  const { data: session, error } = await supabase
+    .from('chat_sessions')
+    .select('*')
+    .eq('session_id', sessionId)
+    .maybeSingle();
+
+  if (session) {
+    await supabase
+      .from('chat_sessions')
+      .update({ updated_at: now.toISOString(), expires_at: expiresAt })
+      .eq('session_id', sessionId);
+    return session;
+  }
+
+  // Create new session
+  const newSession = {
+    session_id: sessionId,
+    state: {},
+    conversation_summary: '',
+    current_stage: 'general',
+    expires_at: expiresAt,
+  };
+
+  const { data: created, error: createError } = await supabase
+    .from('chat_sessions')
+    .insert(newSession)
+    .select('*')
+    .single();
+
+  if (createError) {
+    console.error('[getOrCreateChatSession] Create error:', createError.message);
+  }
+  return created || newSession;
+}
+
+async function updateChatSession(chatSessionId: string, updates: { state?: any; current_stage?: string; conversation_summary?: string }) {
+  const supabase = getServiceClient();
+  const now = new Date();
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+
+  const { data: session } = await supabase
+    .from('chat_sessions')
+    .select('state')
+    .eq('session_id', chatSessionId)
+    .maybeSingle();
+
+  const mergedState = {
+    ...(session?.state || {}),
+    ...(updates.state || {}),
+  };
+
+  const dbUpdates: any = {
+    state: mergedState,
+    updated_at: now.toISOString(),
+    expires_at: expiresAt,
+  };
+
+  if (updates.current_stage) dbUpdates.current_stage = updates.current_stage;
+  if (updates.conversation_summary !== undefined) dbUpdates.conversation_summary = updates.conversation_summary;
+
+  await supabase
+    .from('chat_sessions')
+    .update(dbUpdates)
+    .eq('session_id', chatSessionId);
+}
+
+// ─── Intent & Stage Aware Context Router ──────────────────────────────────────
+function determineActiveModules(userMessage: string, currentStage: string): string[] {
+  const query = userMessage.toLowerCase();
+  const modules = new Set<string>(['booking']); // Always include booking workflow guidance
+
+  // Stage-based modules
+  if (currentStage === 'general' || currentStage === 'package_selection') {
+    modules.add('general');
+    modules.add('packages');
+  } else if (currentStage === 'email_verification') {
+    modules.add('booking');
+  } else if (currentStage === 'booking_confirmation') {
+    modules.add('booking');
+  } else if (currentStage === 'completed') {
+    modules.add('payment');
+    modules.add('contact');
+  }
+
+  // Intent-based keywords matching
+  if (query.includes('package') || query.includes('price') || query.includes('rate') || query.includes('cost') || query.includes('how much') || query.includes('fee')) {
+    modules.add('packages');
+  }
+  if (query.includes('policy') || query.includes('rule') || query.includes('pet') || query.includes('bring') || query.includes('allowed') || query.includes('checkin') || query.includes('checkout') || query.includes('check-in') || query.includes('check-out') || query.includes('cancel')) {
+    modules.add('policies');
+  }
+  if (query.includes('wifi') || query.includes('signal') || query.includes('food') || query.includes('cook') || query.includes('kitchen') || query.includes('pool') || query.includes('river') || query.includes('amenities') || query.includes('faq')) {
+    modules.add('faqs');
+  }
+  if (query.includes('contact') || query.includes('phone') || query.includes('number') || query.includes('email') || query.includes('address') || query.includes('location') || query.includes('where') || query.includes('map') || query.includes('direction')) {
+    modules.add('contact');
+  }
+  if (query.includes('pay') || query.includes('gcash') || query.includes('downpayment') || query.includes('deposit') || query.includes('transfer')) {
+    modules.add('payment');
+  }
+
+  return Array.from(modules);
+}
+
+function buildConversationSummary(state: any, stage: string): string {
+  if (!state || Object.keys(state).length === 0) return '';
+  const parts: string[] = [];
+
+  parts.push(`Conversation Stage: ${stage}`);
+  if (state.package_name) parts.push(`Selected package: ${state.package_name}`);
+  if (state.check_in && state.check_out) parts.push(`Dates: ${state.check_in} to ${state.check_out}`);
+  if (state.pax) parts.push(`Guests: ${state.pax}`);
+  if (state.guest_name) parts.push(`Guest Name: ${state.guest_name}`);
+  if (state.guest_email) parts.push(`Guest Email: ${state.guest_email}`);
+  if (state.guest_phone) parts.push(`Guest Phone: ${state.guest_phone}`);
+  if (state.payment_type) parts.push(`Payment preference: ${state.payment_type}`);
+  if (state.notes) parts.push(`Special notes: ${state.notes}`);
+  if (state.verified) parts.push(`Email Verification Status: VERIFIED`);
+  if (state.reference) parts.push(`Booking Reference: ${state.reference}`);
+
+  return parts.join('\n');
+}
+
+// ─── API POST Route ───────────────────────────────────────────────────────────
 export async function POST(req: Request) {
-  // Rate limit by IP (20 messages per minute)
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   if (isRateLimited(ip)) {
     return new Response(JSON.stringify({ error: 'Too many requests. Please wait a moment.' }), {
@@ -70,17 +213,62 @@ export async function POST(req: Request) {
     });
   }
 
-  const { messages } = (await req.json()) as { messages: UIMessage[] };
+  const { messages, chatSessionId } = (await req.json()) as { messages: UIMessage[]; chatSessionId?: string };
 
-  const systemPrompt = await getCachedSystemPrompt();
+  if (!chatSessionId) {
+    return new Response(JSON.stringify({ error: 'Missing chatSessionId.' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // 1. Get or create persistent Supabase chat session
+  const chatSession = await getOrCreateChatSession(chatSessionId);
+  const currentStage = chatSession.current_stage || 'general';
+  const currentState = chatSession.state || {};
+
+  // 2. Classify latest message intent & dynamically route active modules
+  const latestMessage = messages[messages.length - 1];
+  const latestUserText = latestMessage ? getMessageText(latestMessage) : '';
+  const activeModules = determineActiveModules(latestUserText, currentStage);
+
+  // 3. Retrieve site content and build optimized system prompt
+  const siteContent = await getCachedContent();
+  const summaryStr = buildConversationSummary(currentState, currentStage);
+  const systemPrompt = buildOptimizedPrompt(siteContent, currentState, summaryStr, activeModules);
+
+  // 4. Conversation History Compression: Truncate to summary + last 6 messages
+  const compressedHistory = messages.slice(-6);
+
+  // ─── Token Logging (Phase 10 / token monitoring) ───────────────────────────
+  const sysTokens = countTokens(systemPrompt);
+  const summaryTokens = countTokens(summaryStr);
+  const historyTokens = countTokens(JSON.stringify(compressedHistory));
+  const userTokens = countTokens(latestUserText);
+  const totalInputEstimated = sysTokens + summaryTokens + historyTokens + userTokens;
+
+  console.log(`=== Groq LLM Token Monitoring ===
+System Prompt Tokens: ${sysTokens}
+Injected Summary Tokens: ${summaryTokens}
+Compressed History Tokens: ${historyTokens}
+User Message Tokens: ${userTokens}
+Total Estimated Input Tokens: ${totalInputEstimated}
+=================================`);
 
   const result = streamText({
-    model: groq('llama-3.3-70b-versatile'),
+    model: groq('llama-3.1-8b-instant'),
     system: systemPrompt,
-    messages: await convertToModelMessages(messages),
+    messages: await convertToModelMessages(compressedHistory),
     maxOutputTokens: 2048,
     temperature: 0.7,
     stopWhen: stepCountIs(5),
+    onFinish: (res) => {
+      console.log(`=== Groq Completion Usage ===
+Prompt Tokens: ${res.usage.inputTokens}
+Completion Tokens: ${res.usage.outputTokens}
+Total Tokens: ${res.usage.totalTokens}
+=============================`);
+    },
     tools: {
       checkAvailability: tool({
         description:
@@ -89,7 +277,7 @@ export async function POST(req: Request) {
           check_in: z.string().describe('Check-in date in YYYY-MM-DD format'),
           check_out: z.string().describe('Check-out date in YYYY-MM-DD format'),
           pax: z.number().int().min(1).optional().describe('Number of guests requested'),
-        }),
+        }).passthrough(),
         execute: async ({ check_in, check_out, pax }) => {
           if (check_out <= check_in) {
             return { available: false, reason: 'Check-out must be after check-in.' };
@@ -101,20 +289,21 @@ export async function POST(req: Request) {
             return { available: false, reason: 'Invalid date range.' };
           }
 
-          // maxGuestsAllowed is the minimum remaining capacity across all dates in the requested range
           const maxGuestsAllowed = details.reduce((min, d) => Math.min(min, d.remainingCapacity), Infinity);
-          
-          // maximumCapacity is the minimum maximum capacity across the range
           const maximumCapacity = details.reduce((min, d) => Math.min(min, d.maximumCapacity), Infinity);
-          
-          // bookedGuests is the maximum booked guests on any date in the range
           const bookedGuests = details.reduce((max, d) => Math.max(max, d.bookedGuests), 0);
-          
-          // isFullyBooked if any date in the range is fully booked (remaining capacity is 0)
           const isFullyBooked = details.some((d) => d.isFullyBooked);
 
           const requestedPax = pax ?? 1;
           const available = maxGuestsAllowed >= requestedPax;
+
+          if (available) {
+            // Update session state and transition stage to booking_information
+            await updateChatSession(chatSessionId, {
+              state: { check_in, check_out, pax: requestedPax },
+              current_stage: 'booking_information',
+            });
+          }
 
           return {
             available,
@@ -133,9 +322,8 @@ export async function POST(req: Request) {
           'Look up an existing booking by reference code to check its status. Use this when the user asks about their booking and provides a reference code (e.g. KL-A3F7B2).',
         inputSchema: z.object({
           reference: z.string().describe('The booking reference code, e.g. KL-A3F7B2'),
-        }),
+        }).passthrough(),
         execute: async ({ reference }) => {
-          // Use service-role client since public select is disabled
           const supabase = getServiceClient();
           const { data, error } = await supabase
             .from('bookings')
@@ -160,7 +348,7 @@ export async function POST(req: Request) {
           pax: z.number().int().min(1).describe('Number of guests'),
           payment_type: z.enum(['full', 'downpayment']).describe('full or downpayment (50%)'),
           notes: z.string().optional().describe('Any special requests or notes'),
-        }),
+        }).passthrough(),
         execute: async ({ guest_name, guest_email, guest_phone, package_name, check_in, check_out, pax, payment_type, notes }) => {
           const supabase = getServiceClient();
           const emailStr = guest_email.toLowerCase().trim();
@@ -260,6 +448,23 @@ export async function POST(req: Request) {
             }
           }
 
+          // 7. Update chat session stage and booking state details
+          await updateChatSession(chatSessionId, {
+            state: {
+              guest_name,
+              guest_email: emailStr,
+              guest_phone,
+              package_name,
+              check_in,
+              check_out,
+              pax,
+              payment_type,
+              notes,
+              verification_session_id: newSession.id,
+            },
+            current_stage: 'email_verification',
+          });
+
           return { success: true, sessionId: newSession.id };
         },
       }),
@@ -267,16 +472,28 @@ export async function POST(req: Request) {
       verifyBookingCode: tool({
         description: 'Verify the 6-digit code sent to the guest email. Call this when the guest provides the code.',
         inputSchema: z.object({
-          sessionId: z.string().describe('The active verification session ID'),
           code: z.string().describe('The 6-digit verification code provided by the guest'),
-        }),
-        execute: async ({ sessionId, code }) => {
+        }).passthrough(),
+        execute: async ({ code }) => {
           const supabase = getServiceClient();
+
+          // Fetch verification session id from state
+          const { data: sessionState } = await supabase
+            .from('chat_sessions')
+            .select('state')
+            .eq('session_id', chatSessionId)
+            .maybeSingle();
+
+          const vSessionId = sessionState?.state?.verification_session_id;
+
+          if (!vSessionId) {
+            return { success: false, verified: false, error: 'Verification session not found. Please restart the booking process.' };
+          }
 
           const { data: session, error: dbError } = await supabase
             .from('booking_verifications')
             .select('*')
-            .eq('id', sessionId)
+            .eq('id', vSessionId)
             .maybeSingle();
 
           if (dbError || !session) {
@@ -302,12 +519,18 @@ export async function POST(req: Request) {
             const { error: updateError } = await supabase
               .from('booking_verifications')
               .update({ verified: true })
-              .eq('id', sessionId);
+              .eq('id', vSessionId);
 
             if (updateError) {
               console.error('[Chat API verifyBookingCode] DB update error:', updateError.message);
               return { success: false, verified: false, error: 'Failed to complete verification.' };
             }
+
+            // Update state and transition stage to booking_confirmation
+            await updateChatSession(chatSessionId, {
+              state: { verified: true },
+              current_stage: 'booking_confirmation',
+            });
 
             return { success: true, verified: true, message: 'Email verified successfully.' };
           } else {
@@ -322,7 +545,7 @@ export async function POST(req: Request) {
             await supabase
               .from('booking_verifications')
               .update(updateData)
-              .eq('id', sessionId);
+              .eq('id', vSessionId);
 
             const attemptsRemaining = Math.max(0, 5 - newAttempts);
             const errMsg = shouldExpire
@@ -336,17 +559,28 @@ export async function POST(req: Request) {
 
       completeBooking: tool({
         description: 'Complete the booking reservation after successful email verification and the user\'s final confirmation. Returns reference code and amount due.',
-        inputSchema: z.object({
-          sessionId: z.string().describe('The verified booking session ID'),
-        }),
-        execute: async ({ sessionId }) => {
+        inputSchema: z.object({}).passthrough(),
+        execute: async () => {
           const supabase = getServiceClient();
+
+          // Fetch verification session id from state
+          const { data: sessionState } = await supabase
+            .from('chat_sessions')
+            .select('state')
+            .eq('session_id', chatSessionId)
+            .maybeSingle();
+
+          const vSessionId = sessionState?.state?.verification_session_id;
+
+          if (!vSessionId) {
+            return { success: false, error: 'Booking session not found. Please restart the booking process.' };
+          }
 
           // 1. Retrieve the verification session
           const { data: session, error: dbError } = await supabase
             .from('booking_verifications')
             .select('*')
-            .eq('id', sessionId)
+            .eq('id', vSessionId)
             .maybeSingle();
 
           if (dbError || !session) {
@@ -428,7 +662,7 @@ export async function POST(req: Request) {
           await supabase
             .from('booking_verifications')
             .delete()
-            .eq('id', sessionId);
+            .eq('id', vSessionId);
 
           // 7. Send confirmation emails via Resend
           if (process.env.RESEND_API_KEY) {
@@ -455,7 +689,7 @@ export async function POST(req: Request) {
               // Admin notification
               if (process.env.ADMIN_EMAIL) {
                 await resend.emails.send({
-                  from: `Kamp Lambingan <${fromEmail}>`,
+                  from: `Campaign <${fromEmail}>`,
                   to: process.env.ADMIN_EMAIL,
                   subject: `New booking (via chat) from ${safeName}`,
                   html: `
@@ -477,6 +711,17 @@ export async function POST(req: Request) {
               console.error('[Chat API completeBooking] email notification failed:', emailErr);
             }
           }
+
+          // 8. Update session stage and final values
+          await updateChatSession(chatSessionId, {
+            state: {
+              reference,
+              booking_id: bookingId,
+              amount_due: amountDue,
+              booking_completed: true,
+            },
+            current_stage: 'completed',
+          });
 
           return {
             success: true,

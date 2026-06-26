@@ -2,9 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, isTextUIPart, UIMessage } from 'ai';
-import { useEffect, useRef, useState } from 'react';
-
-const transport = new DefaultChatTransport({ api: '/api/chat' });
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const SUGGESTED_QUESTIONS = [
   'What packages do you offer?',
@@ -107,32 +105,14 @@ function parseMarkdown(text: string): React.ReactNode {
   return <div className="space-y-1.5">{elements}</div>;
 }
 
-type BookingResult = {
-  success: boolean;
-  reference?: string;
-  amount_due?: string;
-  error?: string;
-};
-
-function tryParsePaymentInstructions(text: string) {
-  const trimmed = text.trim();
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (parsed && parsed.message && (parsed.attachments || parsed.reference)) {
-        return parsed as {
-          message: string;
-          reference?: string;
-          booking_id?: string;
-          amount_due?: string;
-          attachments?: Array<{ type: string; url: string }>;
-        };
-      }
-    } catch {
-      // ignore
-    }
+function getOrCreateSessionId() {
+  if (typeof window === 'undefined') return '';
+  let id = sessionStorage.getItem('kl_chat_session_id');
+  if (!id) {
+    id = window.crypto?.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+    sessionStorage.setItem('kl_chat_session_id', id);
   }
-  return null;
+  return id;
 }
 
 function PaymentInstructionCard({
@@ -275,42 +255,23 @@ function PaymentInstructionCard({
   );
 }
 
-function BookingConfirmCard({ result }: { result: BookingResult }) {
-  if (!result.success) {
-    return (
-      <div className="mt-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-xs text-red-700">
-        ❌ {result.error ?? 'Something went wrong. Please try again.'}
-      </div>
-    );
-  }
-  return (
-    <div className="mt-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 text-xs space-y-1">
-      <p className="font-semibold text-green-800">✅ Booking Submitted!</p>
-      <p className="text-green-700">
-        Reference: <span className="font-bold tracking-widest">{result.reference}</span>
-      </p>
-      {result.amount_due && (
-        <p className="text-green-700">
-          Amount due: <strong>{result.amount_due}</strong>
-        </p>
-      )}
-      <p className="text-green-600 leading-relaxed">
-        Our team will contact you within 24 hours with GCash payment details to confirm your reservation.
-      </p>
-      <a href="/my-bookings" className="inline-block mt-1 text-primary underline font-medium">
-        Track your booking 🔍
-      </a>
-    </div>
-  );
-}
-
 export default function ChatWidget({ content }: { content?: any }) {
   const [open, setOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, status, setMessages } = useChat({ transport });
+  const sessionId = getOrCreateSessionId();
+  const transport = useMemo(() => new DefaultChatTransport({
+    api: '/api/chat',
+    body: {
+      chatSessionId: sessionId
+    }
+  }), [sessionId]);
+
+  const { messages, sendMessage, status, setMessages } = useChat({
+    transport
+  });
 
   // Restore previous conversation from sessionStorage on mount
   useEffect(() => {
@@ -432,10 +393,8 @@ export default function ChatWidget({ content }: { content?: any }) {
 
               const bookingResult =
                 bookingToolPart && (bookingToolPart as { state: string; output?: unknown }).state === 'output-available'
-                  ? ((bookingToolPart as { output: unknown }).output as BookingResult)
+                  ? ((bookingToolPart as { output: unknown }).output as any)
                   : undefined;
-
-              const paymentInstructions = m.role === 'assistant' ? tryParsePaymentInstructions(text) : null;
 
               return (
                 <div
@@ -444,21 +403,32 @@ export default function ChatWidget({ content }: { content?: any }) {
                 >
                   <div className={`${m.role === 'user' ? 'max-w-[85%]' : 'w-full'}`}>
                     {text && (
-                      paymentInstructions ? (
-                        <PaymentInstructionCard instructions={paymentInstructions} content={content} />
-                      ) : (
-                        <div
-                          className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                            m.role === 'user'
-                              ? 'bg-primary text-white rounded-br-sm whitespace-pre-wrap'
-                              : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                          }`}
-                        >
-                          {m.role === 'user' ? text : parseMarkdown(text)}
-                        </div>
-                      )
+                      <div
+                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
+                          m.role === 'user'
+                            ? 'bg-primary text-white rounded-br-sm whitespace-pre-wrap'
+                            : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                        }`}
+                      >
+                        {m.role === 'user' ? text : parseMarkdown(text)}
+                      </div>
                     )}
-                    {bookingResult && <BookingConfirmCard result={bookingResult} />}
+                    {bookingResult && bookingResult.success && bookingResult.reference && (
+                      <PaymentInstructionCard
+                        instructions={{
+                          message: "Please complete your payment using the QR code below.",
+                          reference: bookingResult.reference,
+                          booking_id: bookingResult.booking_id,
+                          amount_due: bookingResult.amount_due
+                        }}
+                        content={content}
+                      />
+                    )}
+                    {bookingResult && !bookingResult.success && (
+                      <div className="mt-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5 text-xs text-red-700">
+                        ❌ {bookingResult.error ?? 'Something went wrong. Please try again.'}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -498,12 +468,19 @@ export default function ChatWidget({ content }: { content?: any }) {
             onSubmit={handleSubmit}
             className="flex-shrink-0 border-t border-gray-100 px-3 py-3 flex gap-2"
           >
-            <input
+            <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !e.altKey && !e.ctrlKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
               placeholder="Type a message..."
               disabled={isLoading}
-              className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 bg-gray-50"
+              rows={1}
+              className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 bg-gray-50 resize-none max-h-24 min-h-[38px] overflow-y-auto leading-relaxed"
             />
             <button
               type="submit"
