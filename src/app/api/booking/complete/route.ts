@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { getServiceClient } from '@/lib/supabase/server';
 import { getCapacityForDates } from '@/actions/bookings';
 import { getContent } from '@/actions/content';
+import { getSelectedPackage } from '@/lib/package-helper';
 
 function escapeHtml(str: string): string {
   return str
@@ -77,20 +78,53 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. Calculate amount due on the server
+    // 4. Validate package metadata & calculate amount due on the server
     let amountDue = '';
     try {
       const siteContent = await getContent();
-      const selectedPackage = siteContent.packages.find(p => p.name === package_name);
-      if (!selectedPackage) {
+      const selectedPkg = getSelectedPackage(package_name, siteContent.packages);
+      if (!selectedPkg) {
         return NextResponse.json({ error: 'Selected package is invalid.' }, { status: 400 });
       }
-      const priceNum = parseInt(selectedPackage.price.replace(/[^\d]/g, ''), 10) || 0;
+
+      // Validate guest capacity
+      if (pax > selectedPkg.capacity) {
+        return NextResponse.json(
+          { error: `Guest count (${pax}) exceeds the selected package capacity of ${selectedPkg.capacity}.` },
+          { status: 400 }
+        );
+      }
+      if (pax < 1) {
+        return NextResponse.json({ error: 'Guest count must be at least 1.' }, { status: 400 });
+      }
+
+      // Validate stay duration
+      const checkInDate = new Date(check_in + 'T00:00:00');
+      const checkOutDate = new Date(check_out + 'T00:00:00');
+      const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays <= 0) {
+        return NextResponse.json({ error: 'Check-out must be after check-in.' }, { status: 400 });
+      }
+      if (diffDays > selectedPkg.maxStayDays) {
+        return NextResponse.json(
+          { error: `Stay duration exceeds the maximum stay limit of ${selectedPkg.maxStayDays} days for this package.` },
+          { status: 400 }
+        );
+      }
+      if (selectedPkg.maxStayDays === 1 && diffDays !== 1) {
+        return NextResponse.json({ error: 'Single-night package requires exactly a 1-night stay.' }, { status: 400 });
+      }
+
+      const priceNum = typeof selectedPkg.price === 'number' 
+        ? selectedPkg.price 
+        : (parseInt((selectedPkg.price as any).replace(/[^\d]/g, ''), 10) || 0);
       const amountDueNum = payment_type === 'full' ? priceNum : Math.ceil(priceNum / 2);
       amountDue = amountDueNum > 0 ? '₱' + amountDueNum.toLocaleString('en-PH') : '';
     } catch (err) {
-      console.error('[API booking/complete] pricing calculation failed:', err);
-      return NextResponse.json({ error: 'Pricing validation failed.' }, { status: 500 });
+      console.error('[API booking/complete] validation/pricing calculation failed:', err);
+      return NextResponse.json({ error: 'Pricing/capacity validation failed.' }, { status: 500 });
     }
 
     // 5. Generate Reference Code (CSPRNG)

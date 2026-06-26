@@ -40,13 +40,13 @@ CREATE TABLE IF NOT EXISTS public.bookings (
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS payment_type text DEFAULT 'full' CHECK (payment_type IN ('full', 'downpayment'));
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS amount_due text;
 ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS archived_at timestamptz;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS status_reason text;
 
--- Add database-level double-booking prevention constraint
+
+-- Remove legacy single-booking exclusion constraint
+-- Double-booking/capacity limits are handled dynamically via public.create_booking_safe()
 ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_date_overlap_exclude;
-ALTER TABLE public.bookings ADD CONSTRAINT bookings_date_overlap_exclude
-EXCLUDE USING gist (
-  daterange(check_in, check_out, '[]') WITH &&
-) WHERE (status <> 'cancelled' AND is_archived = false);
+
 
 -- App settings table (key/value store for admin-configurable settings)
 CREATE TABLE IF NOT EXISTS public.app_settings (

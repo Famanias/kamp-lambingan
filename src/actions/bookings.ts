@@ -117,14 +117,24 @@ export async function createBooking(formData: FormData) {
     }
 
     // Validate check-out date matching package rules
-    if (!selectedPkg.allowsMultiDay) {
-      const expectedCheckOut = getNextDayString(input.check_in);
-      if (input.check_out !== expectedCheckOut) {
-        return { success: false, error: `Invalid check-out date for this package. Expected check-out date is ${expectedCheckOut}.`, id: null, reference: null };
-      }
+    const checkInDate = new Date(input.check_in + 'T00:00:00');
+    const checkOutDate = new Date(input.check_out + 'T00:00:00');
+    const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays <= 0) {
+      return { success: false, error: 'Check-out must be after check-in.', id: null, reference: null };
+    }
+    if (diffDays > selectedPkg.maxStayDays) {
+      return { success: false, error: `Stay duration exceeds the maximum stay limit of ${selectedPkg.maxStayDays} days for this package.`, id: null, reference: null };
+    }
+    if (selectedPkg.maxStayDays === 1 && diffDays !== 1) {
+      return { success: false, error: `Single-night package requires exactly a 1-night stay.`, id: null, reference: null };
     }
 
-    const priceNum = parseInt(selectedPkg.price.replace(/[^\d]/g, ''), 10) || 0;
+    const priceNum = typeof selectedPkg.price === 'number' 
+      ? selectedPkg.price 
+      : (parseInt((selectedPkg.price as any).replace(/[^\d]/g, ''), 10) || 0);
     const amountDueNum = input.payment_type === 'full' ? priceNum : Math.ceil(priceNum / 2);
     input.amount_due = amountDueNum > 0 ? '₱' + amountDueNum.toLocaleString('en-PH') : '';
   } catch (err) {
@@ -252,7 +262,7 @@ export async function getBookingByReference(reference: string) {
   const supabase = getServiceClient(); // service role to query since public select is disabled
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, guest_name, package_name, check_in, check_out, pax, status, reference, created_at')
+    .select('id, guest_name, package_name, check_in, check_out, pax, status, reference, created_at, status_reason')
     .eq('reference', reference.trim().toUpperCase())
     .single();
 
@@ -543,10 +553,16 @@ export async function updateBookingStatus(
   }
 
   const supabase = await createClient();
+  const updateData: any = { 
+    status, 
+    updated_at: new Date().toISOString(),
+    status_reason: reason || null
+  };
   const { error } = await supabase
     .from('bookings')
-    .update({ status, updated_at: new Date().toISOString() })
+    .update(updateData)
     .eq('id', id);
+
 
   if (error) return { success: false, error: 'Failed to update booking status.' };
 

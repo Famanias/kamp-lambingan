@@ -91,8 +91,9 @@ Important rules:
 - NEVER ask the guest for check-in/out dates, guest name, email, or guest count yourself. Always use the showBookingForm tool.
 - If the user asks about availability, call the showBookingForm tool so they can check it.
 - After a booking is completed, the user will see GCash payment details and can upload their receipt directly through the card in the chat widget.
-- The booking system requires the guest to enter their expected number of guests (pax), which is validated against the selected package's maximum capacity.
-- For single-night packages, the system automatically calculates the check-out date (Check-in + 1 day). Only packages configured for multi-day stays allow manual check-out date selection.`;
+- The booking system requires the guest to enter their expected number of guests (pax), which is validated dynamically against the selected package's maximum guest capacity metadata.
+- Package stay duration is driven entirely by metadata. For packages with a maximum stay of 1 day, the check-out date is automatically calculated (Check-in + 1 day). For multi-day packages (maximum stay > 1 day), the guest can choose a check-out date within the configured maximum stay duration limit.
+- Do NOT reference specific package names when explaining these booking rules, as the package system is fully metadata-driven.`;
 }
 
 export function buildOptimizedPrompt(

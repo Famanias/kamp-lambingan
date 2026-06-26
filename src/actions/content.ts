@@ -75,15 +75,71 @@ export async function getContent(): Promise<SiteContent> {
       .single();
 
     if (!error && data?.data && Object.keys(data.data).length > 0) {
-      // Merge stored content on top of DEFAULT_CONTENT so any newly added
-      // fields (e.g. villas, villasTitle) always have a fallback value even
-      // when the stored JSON predates those fields.
-      return { ...DEFAULT_CONTENT, ...(data.data as SiteContent) };
+      const merged = { ...DEFAULT_CONTENT, ...(data.data as SiteContent) };
+      if (Array.isArray(merged.packages)) {
+        merged.packages = merged.packages.map((p) => {
+          // Parse price to number
+          let price = p.price as any;
+          if (typeof price === 'string') {
+            price = parseInt(price.replace(/[^\d]/g, ''), 10) || 0;
+          } else if (typeof price !== 'number') {
+            price = 0;
+          }
+
+          // Parse description
+          const description = p.description || '';
+
+          // Parse capacity
+          let capacity = p.capacity;
+          if (typeof capacity !== 'number' || isNaN(capacity) || capacity < 1) {
+            const desc = description.toLowerCase();
+            const match = desc.match(/up to (\d+)\s*pax/i);
+            if (match) {
+              capacity = parseInt(match[1], 10) || 2;
+            } else if (p.name.toLowerCase().includes('couple') || (p.label || '').toLowerCase().includes('couple')) {
+              capacity = 2;
+            } else if (p.name.toLowerCase().includes('day tour')) {
+              capacity = 30;
+            } else if (p.name.toLowerCase().includes('hall') || p.name.toLowerCase().includes('pool party')) {
+              capacity = 100;
+            } else {
+              capacity = 20; // default fallback
+            }
+          }
+
+          // Parse maxStayDays
+          let maxStayDays = p.maxStayDays;
+          if (typeof maxStayDays !== 'number' || isNaN(maxStayDays) || maxStayDays < 1) {
+            maxStayDays = p.allowsMultiDay ? 3 : 1;
+          }
+
+          return {
+            ...p,
+            price,
+            description,
+            capacity,
+            maxStayDays,
+            allowsMultiDay: maxStayDays > 1,
+          };
+        });
+      }
+      return merged as SiteContent;
     }
   } catch {
     // fall through to default
   }
-  return DEFAULT_CONTENT;
+
+  // Sanitize DEFAULT_CONTENT clone just in case
+  const defaultClone = JSON.parse(JSON.stringify(DEFAULT_CONTENT));
+  if (Array.isArray(defaultClone.packages)) {
+    defaultClone.packages = defaultClone.packages.map((p: any) => ({
+      ...p,
+      capacity: p.capacity ?? 2,
+      maxStayDays: p.maxStayDays ?? (p.allowsMultiDay ? 3 : 1),
+      allowsMultiDay: (p.maxStayDays ?? (p.allowsMultiDay ? 3 : 1)) > 1
+    }));
+  }
+  return defaultClone as SiteContent;
 }
 
 export async function saveContent(content: SiteContent) {

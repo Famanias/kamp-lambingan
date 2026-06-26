@@ -49,8 +49,11 @@ export default function BookForm({ content }: BookFormProps) {
   // Derived price info (must be after form state)
   const selectedPackage = getSelectedPackage(form.packageName, content.packages);
   const maxCapacity = selectedPackage ? selectedPackage.capacity : 20;
-  const allowsMultiDay = selectedPackage ? selectedPackage.allowsMultiDay : false;
-  const priceNum = selectedPackage ? parseInt(selectedPackage.price.replace(/[^\d]/g, ''), 10) || 0 : 0;
+  const maxStayDays = selectedPackage ? selectedPackage.maxStayDays : 1;
+  const allowsMultiDay = maxStayDays > 1;
+  const priceNum = selectedPackage
+    ? (typeof selectedPackage.price === 'number' ? selectedPackage.price : parseInt((selectedPackage.price as any).replace(/[^\d]/g, ''), 10) || 0)
+    : 0;
   const amountDueNum = paymentType === 'full' ? priceNum : Math.ceil(priceNum / 2);
   const amountDueFormatted = amountDueNum > 0 ? '\u20B1' + amountDueNum.toLocaleString('en-PH') : '';
   const downpaymentFormatted = priceNum > 0 ? '\u20B1' + Math.ceil(priceNum / 2).toLocaleString('en-PH') : '';
@@ -85,7 +88,7 @@ export default function BookForm({ content }: BookFormProps) {
           if (!isNaN(currentPax) && currentPax > selectedPkg.capacity) {
             updated.pax = selectedPkg.capacity.toString();
           }
-          if (!selectedPkg.allowsMultiDay && prev.checkIn) {
+          if (selectedPkg.maxStayDays === 1 && prev.checkIn) {
             updated.checkOut = getNextDayString(prev.checkIn);
           }
         }
@@ -143,12 +146,22 @@ export default function BookForm({ content }: BookFormProps) {
 
     if (name === 'checkOut') {
       const selectedPkg = getSelectedPackage(form.packageName, content.packages);
-      const isMulti = selectedPkg ? selectedPkg.allowsMultiDay : false;
+      const isMulti = selectedPkg ? selectedPkg.maxStayDays > 1 : false;
       if (!isMulti) return; // read-only checkOut should not trigger changes
       
       if (form.checkIn && value <= form.checkIn) {
         setError('Check-out must be after check-in.');
         return;
+      }
+      if (form.checkIn) {
+        const checkInDate = new Date(form.checkIn + 'T00:00:00');
+        const checkOutDate = new Date(value + 'T00:00:00');
+        const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays > (selectedPkg ? selectedPkg.maxStayDays : 1)) {
+          setError(`Stay duration exceeds the maximum stay limit of ${selectedPkg ? selectedPkg.maxStayDays : 1} days for this package.`);
+          return;
+        }
       }
       if (form.checkIn && isRangeBooked(form.checkIn, value)) {
         setError('Selected dates overlap with an existing booking.');
@@ -161,7 +174,7 @@ export default function BookForm({ content }: BookFormProps) {
 
     if (name === 'checkIn') {
       const selectedPkg = getSelectedPackage(form.packageName, content.packages);
-      const isMulti = selectedPkg ? selectedPkg.allowsMultiDay : false;
+      const isMulti = selectedPkg ? selectedPkg.maxStayDays > 1 : false;
       
       if (!isMulti) {
         const nextCheckOut = getNextDayString(value);
@@ -175,16 +188,19 @@ export default function BookForm({ content }: BookFormProps) {
         let nextCheckOut = form.checkOut;
         const hadCheckOut = Boolean(nextCheckOut);
         let cleared = false;
-        if (nextCheckOut && nextCheckOut <= value) {
-          nextCheckOut = '';
-          cleared = true;
-        } else if (nextCheckOut && isRangeBooked(value, nextCheckOut)) {
-          nextCheckOut = '';
-          cleared = true;
+        if (nextCheckOut) {
+          const checkInDate = new Date(value + 'T00:00:00');
+          const checkOutDate = new Date(nextCheckOut + 'T00:00:00');
+          const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (nextCheckOut <= value || diffDays > (selectedPkg ? selectedPkg.maxStayDays : 1) || isRangeBooked(value, nextCheckOut)) {
+            nextCheckOut = '';
+            cleared = true;
+          }
         }
         setForm((prev) => ({ ...prev, checkIn: value, checkOut: nextCheckOut }));
         if (cleared && hadCheckOut) {
-          setError('Please select a new check-out date.');
+          setError('Please select a new check-out date matching the package stay limit.');
         } else {
           setError(null);
         }
@@ -234,6 +250,17 @@ export default function BookForm({ content }: BookFormProps) {
       setError('Check-out must be after check-in.');
       return;
     }
+
+    // Validate stay duration
+    const checkInDate = new Date(form.checkIn + 'T00:00:00');
+    const checkOutDate = new Date(form.checkOut + 'T00:00:00');
+    const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays > maxStayDays) {
+      setError(`Stay duration exceeds the maximum stay limit of ${maxStayDays} days for this package.`);
+      return;
+    }
+
     if (bookedDatesLoading) {
       setError('Checking date availability. Please wait...');
       return;
@@ -412,7 +439,9 @@ export default function BookForm({ content }: BookFormProps) {
               >
                 <option value="">Select a package</option>
                 {content.packages.map((pkg, i) => (
-                  <option key={i} value={pkg.name}>{pkg.name} — {pkg.price}</option>
+                  <option key={i} value={pkg.name}>
+                    {pkg.name} — {typeof pkg.price === 'number' ? '₱' + pkg.price.toLocaleString('en-PH') : pkg.price}
+                  </option>
                 ))}
               </select>
             </div>
@@ -422,7 +451,9 @@ export default function BookForm({ content }: BookFormProps) {
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Package Price</span>
-                  <span className="text-2xl font-bold text-primary">{selectedPackage.price}</span>
+                  <span className="text-2xl font-bold text-primary">
+                    {typeof selectedPackage.price === 'number' ? '₱' + selectedPackage.price.toLocaleString('en-PH') : selectedPackage.price}
+                  </span>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Payment Option</p>
@@ -437,7 +468,9 @@ export default function BookForm({ content }: BookFormProps) {
                       }`}
                     >
                       Full Payment
-                      <span className={`block text-xs mt-0.5 ${paymentType === 'full' ? 'opacity-80' : 'text-gray-500'}`}>{selectedPackage.price}</span>
+                      <span className={`block text-xs mt-0.5 ${paymentType === 'full' ? 'opacity-80' : 'text-gray-500'}`}>
+                        {typeof selectedPackage.price === 'number' ? '₱' + selectedPackage.price.toLocaleString('en-PH') : selectedPackage.price}
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -478,19 +511,28 @@ export default function BookForm({ content }: BookFormProps) {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date *</label>
                 {allowsMultiDay ? (
-                  <input
-                    type="date"
-                    name="checkOut"
-                    value={form.checkOut}
-                    onChange={handleDateChange}
-                    required
-                    min={form.checkIn || new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
-                  />
+                  <>
+                    <input
+                      type="date"
+                      name="checkOut"
+                      value={form.checkOut}
+                      onChange={handleDateChange}
+                      required
+                      min={form.checkIn || new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
+                    />
+                    <span className="text-xs text-gray-400 block mt-1">Maximum stay: {maxStayDays} days</span>
+                  </>
                 ) : (
-                  <div className="w-full px-4 py-[11px] border border-gray-300 rounded-lg bg-gray-50 text-gray-400 font-medium select-none">
-                    {form.checkIn ? formatHumanDate(form.checkOut) : 'Select check-in first'}
-                  </div>
+                  <>
+                    <div className="w-full px-4 py-[11px] border border-gray-300 rounded-lg bg-gray-50 text-gray-400 font-medium select-none">
+                      {form.checkIn ? formatHumanDate(form.checkOut) : 'Select check-in first'}
+                    </div>
+                    <span className="text-xs text-gray-400 block mt-1 leading-normal">
+                      This package includes a 1-day stay.<br />
+                      The check-out date is calculated automatically.
+                    </span>
+                  </>
                 )}
               </div>
             </div>
@@ -598,7 +640,7 @@ export default function BookForm({ content }: BookFormProps) {
             <div className="flex justify-between"><span className="text-gray-500">Guests</span><span className="text-gray-900">{form.pax}</span></div>
             {selectedPackage && (
               <>
-                <div className="flex justify-between"><span className="text-gray-500">Package Price</span><span className="font-medium text-gray-900">{selectedPackage.price}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Package Price</span><span className="font-medium text-gray-900">{typeof selectedPackage.price === 'number' ? '₱' + selectedPackage.price.toLocaleString('en-PH') : selectedPackage.price}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Payment Type</span><span className="text-gray-900">{paymentType === 'downpayment' ? 'Downpayment (50%)' : 'Full Payment'}</span></div>
                 <div className="flex justify-between border-t border-gray-200 pt-2 mt-1"><span className="font-semibold text-gray-700">Amount Due Now</span><span className="font-bold text-primary text-base">{amountDueFormatted}</span></div>
               </>

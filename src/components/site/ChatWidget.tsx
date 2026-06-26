@@ -316,7 +316,8 @@ function BookingFormCard({
 
   const selectedPkg = getSelectedPackage(details.package_name, packages);
   const maxCapacity = selectedPkg ? selectedPkg.capacity : 20;
-  const allowsMultiDay = selectedPkg ? selectedPkg.allowsMultiDay : false;
+  const maxStayDays = selectedPkg ? selectedPkg.maxStayDays : 1;
+  const allowsMultiDay = maxStayDays > 1;
 
   return (
     <form onSubmit={onSubmit} className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs space-y-3 shadow-sm text-gray-800">
@@ -381,7 +382,7 @@ function BookingFormCard({
             <option value="">Choose a package...</option>
             {packages.map((pkg, idx) => (
               <option key={`${pkg.name}-${idx}`} value={pkg.name}>
-                {pkg.name} ({pkg.price})
+                {pkg.name} ({typeof pkg.price === 'number' ? '₱' + pkg.price.toLocaleString('en-PH') : pkg.price})
               </option>
             ))}
           </select>
@@ -402,18 +403,26 @@ function BookingFormCard({
           <div>
             <label className="block text-[10px] font-semibold text-gray-500 mb-0.5">Check-out Date</label>
             {allowsMultiDay ? (
-              <input
-                type="date"
-                required
-                min={details.check_in || getTodayString()}
-                value={details.check_out}
-                onChange={(e) => onChange('check_out', e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-white"
-              />
+              <>
+                <input
+                  type="date"
+                  required
+                  min={details.check_in || getTodayString()}
+                  value={details.check_out}
+                  onChange={(e) => onChange('check_out', e.target.value)}
+                  className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-white"
+                />
+                <span className="text-[9px] text-gray-400 block mt-0.5">Maximum stay: {maxStayDays} days</span>
+              </>
             ) : (
-              <div className="w-full text-xs px-2.5 py-2 border border-gray-200 rounded-xl bg-gray-50 text-gray-400 font-medium leading-tight select-none">
-                {details.check_in ? formatHumanDate(details.check_out) : 'Select check-in first'}
-              </div>
+              <>
+                <div className="w-full text-xs px-2.5 py-2 border border-gray-200 rounded-xl bg-gray-50 text-gray-400 font-medium leading-tight select-none">
+                  {details.check_in ? formatHumanDate(details.check_out) : 'Select check-in first'}
+                </div>
+                <span className="text-[9px] text-gray-400 block mt-0.5 leading-normal">
+                  This package includes a 1-day stay. The check-out date is calculated automatically.
+                </span>
+              </>
             )}
           </div>
         </div>
@@ -433,7 +442,7 @@ function BookingFormCard({
               }}
               className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
             />
-            <span className="text-[9px] text-gray-400 block mt-0.5">Maximum allowed: {maxCapacity}</span>
+            <span className="text-[9px] text-gray-400 block mt-0.5">Maximum guests allowed: {maxCapacity}</span>
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-gray-500 mb-0.5">Payment Option</label>
@@ -612,8 +621,12 @@ function BookingSummaryCard({
   error,
 }: BookingSummaryCardProps) {
   const selectedPkg = packages.find((p) => p.name === details.package_name);
-  const priceNum = selectedPkg ? (parseInt(selectedPkg.price.replace(/[^\d]/g, ''), 10) || 0) : 0;
-  const totalAmount = selectedPkg ? selectedPkg.price : '₱0';
+  const priceNum = selectedPkg
+    ? (typeof selectedPkg.price === 'number' ? selectedPkg.price : parseInt(selectedPkg.price.replace(/[^\d]/g, ''), 10) || 0)
+    : 0;
+  const totalAmount = selectedPkg
+    ? (typeof selectedPkg.price === 'number' ? '₱' + selectedPkg.price.toLocaleString('en-PH') : selectedPkg.price)
+    : '₱0';
   const downpaymentAmount = priceNum > 0 ? '₱' + Math.ceil(priceNum / 2).toLocaleString('en-PH') : '₱0';
   const amountDue = details.payment_type === 'full' ? totalAmount : downpaymentAmount;
 
@@ -760,14 +773,14 @@ export default function ChatWidget({ content }: { content?: any }) {
         if (typeof updated.pax === 'number' && updated.pax > selectedPkg.capacity) {
           updated.pax = selectedPkg.capacity;
         }
-        if (!selectedPkg.allowsMultiDay && updated.check_in) {
+        if (selectedPkg.maxStayDays === 1 && updated.check_in) {
           updated.check_out = getNextDayString(updated.check_in);
         }
       }
     }
 
     if (field === 'check_in') {
-      if (selectedPkg && !selectedPkg.allowsMultiDay && val) {
+      if (selectedPkg && selectedPkg.maxStayDays === 1 && val) {
         updated.check_out = getNextDayString(val);
       }
     }
@@ -838,6 +851,50 @@ export default function ChatWidget({ content }: { content?: any }) {
     e.preventDefault();
     setCardError(null);
     setCardLoading(true);
+
+    // Client-side validations
+    const selectedPkg = getSelectedPackage(bookingDetails.package_name, packagesList);
+    if (!selectedPkg) {
+      setCardError('Please select a valid package.');
+      setCardLoading(false);
+      return;
+    }
+    
+    // Validate guest capacity
+    const guestCount = Number(bookingDetails.pax);
+    if (isNaN(guestCount) || guestCount < 1) {
+      setCardError('Number of guests must be at least 1.');
+      setCardLoading(false);
+      return;
+    }
+    if (guestCount > selectedPkg.capacity) {
+      setCardError(`Number of guests exceeds the maximum capacity of ${selectedPkg.capacity} for this package.`);
+      setCardLoading(false);
+      return;
+    }
+
+    // Validate stay duration
+    if (!bookingDetails.check_in || !bookingDetails.check_out) {
+      setCardError('Check-in and check-out dates are required.');
+      setCardLoading(false);
+      return;
+    }
+    
+    const checkInDate = new Date(bookingDetails.check_in + 'T00:00:00');
+    const checkOutDate = new Date(bookingDetails.check_out + 'T00:00:00');
+    const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays <= 0) {
+      setCardError('Check-out must be after check-in.');
+      setCardLoading(false);
+      return;
+    }
+    if (diffDays > selectedPkg.maxStayDays) {
+      setCardError(`Stay duration exceeds the maximum stay limit of ${selectedPkg.maxStayDays} days for this package.`);
+      setCardLoading(false);
+      return;
+    }
 
     try {
       // 1. Check availability

@@ -2,6 +2,7 @@ import { Package } from './types';
 
 export interface ExtendedPackage extends Package {
   capacity: number;
+  maxStayDays: number;
   allowsMultiDay: boolean;
 }
 
@@ -16,8 +17,8 @@ export function getSelectedPackage(packageName: string | null | undefined, packa
   if (!pkg) return null;
 
   // 1. Get capacity (explicit or inferred from description/name)
-  let capacity = (pkg as any).capacity;
-  if (typeof capacity !== 'number') {
+  let capacity = pkg.capacity;
+  if (typeof capacity !== 'number' || isNaN(capacity) || capacity < 1) {
     const desc = (pkg.description || '').toLowerCase();
     const match = desc.match(/up to (\d+)\s*pax/i);
     if (match) {
@@ -33,25 +34,29 @@ export function getSelectedPackage(packageName: string | null | undefined, packa
     }
   }
 
-  // 2. Get allowsMultiDay (explicit or inferred from name/description)
-  let allowsMultiDay = (pkg as any).allowsMultiDay;
-  if (typeof allowsMultiDay !== 'boolean') {
-    const nameLower = pkg.name.toLowerCase();
-    const descLower = (pkg.description || '').toLowerCase();
-    const featuresLower = (pkg.features || []).join(' ').toLowerCase();
-    
-    // Multi-day stays are supported for Exclusive Overnight packages
-    allowsMultiDay = nameLower.includes('overnight') || 
-                     descLower.includes('2-3 days') || 
-                     descLower.includes('2–3 days') ||
-                     featuresLower.includes('2-3 days') ||
-                     featuresLower.includes('2–3 days');
+  // 2. Get maxStayDays (explicit or inferred)
+  let maxStayDays = pkg.maxStayDays;
+  if (typeof maxStayDays !== 'number' || isNaN(maxStayDays) || maxStayDays < 1) {
+    if (typeof (pkg as any).allowsMultiDay === 'boolean') {
+      maxStayDays = (pkg as any).allowsMultiDay ? 3 : 1;
+    } else {
+      const nameLower = pkg.name.toLowerCase();
+      const descLower = (pkg.description || '').toLowerCase();
+      const featuresLower = (pkg.features || []).join(' ').toLowerCase();
+      const isMulti = nameLower.includes('overnight') || 
+                      descLower.includes('2-3 days') || 
+                      descLower.includes('2–3 days') ||
+                      featuresLower.includes('2-3 days') ||
+                      featuresLower.includes('2–3 days');
+      maxStayDays = isMulti ? 3 : 1;
+    }
   }
 
   return {
     ...pkg,
     capacity,
-    allowsMultiDay,
+    maxStayDays,
+    allowsMultiDay: maxStayDays > 1,
   };
 }
 

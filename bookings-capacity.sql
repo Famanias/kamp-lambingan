@@ -37,8 +37,16 @@ WITH CHECK (
   )
 );
 
+-- Drop the legacy single-booking exclusion constraint if it exists,
+-- as capacity limits are now managed dynamically via public.create_booking_safe()
+ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_date_overlap_exclude;
+
+-- Add status_reason column if not exists
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS status_reason text;
+
 -- Add 'expired' status constraint to bookings table status column if needed.
 -- The existing CHECK constraint is: CHECK (status IN ('pending', 'confirmed', 'cancelled'))
+
 -- To support 'expired' status, we need to update this constraint.
 ALTER TABLE public.bookings DROP CONSTRAINT IF EXISTS bookings_status_check;
 ALTER TABLE public.bookings ADD CONSTRAINT bookings_status_check 
