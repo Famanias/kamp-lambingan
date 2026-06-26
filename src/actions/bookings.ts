@@ -5,6 +5,7 @@ import { headers } from 'next/headers';
 import { createClient, getServiceClient, requireAdmin } from '@/lib/supabase/server';
 import { collectBookedDates, expandDateRange } from '@/lib/booking-dates';
 import { getContent } from './content';
+import { getSelectedPackage, getNextDayString } from '@/lib/package-helper';
 import crypto from 'crypto';
 
 export interface BookingInput {
@@ -99,19 +100,36 @@ export async function createBooking(formData: FormData) {
     return { success: false, error: 'Check-out must be after check-in.', id: null, reference: null };
   }
 
-  // Server-authoritative price calculation (Never trust amount_due from client)
+  // Server-authoritative validation & price calculation (Never trust client input)
   try {
     const siteContent = await getContent();
-    const selectedPackage = siteContent.packages.find(p => p.name === input.package_name);
-    if (!selectedPackage) {
+    const selectedPkg = getSelectedPackage(input.package_name, siteContent.packages);
+    if (!selectedPkg) {
       return { success: false, error: 'Selected package is invalid.', id: null, reference: null };
     }
-    const priceNum = parseInt(selectedPackage.price.replace(/[^\d]/g, ''), 10) || 0;
+
+    // Validate guest capacity
+    if (input.pax > selectedPkg.capacity) {
+      return { success: false, error: `Guest count (${input.pax}) exceeds the selected package capacity of ${selectedPkg.capacity}.`, id: null, reference: null };
+    }
+    if (input.pax < 1) {
+      return { success: false, error: 'Guest count must be at least 1.', id: null, reference: null };
+    }
+
+    // Validate check-out date matching package rules
+    if (!selectedPkg.allowsMultiDay) {
+      const expectedCheckOut = getNextDayString(input.check_in);
+      if (input.check_out !== expectedCheckOut) {
+        return { success: false, error: `Invalid check-out date for this package. Expected check-out date is ${expectedCheckOut}.`, id: null, reference: null };
+      }
+    }
+
+    const priceNum = parseInt(selectedPkg.price.replace(/[^\d]/g, ''), 10) || 0;
     const amountDueNum = input.payment_type === 'full' ? priceNum : Math.ceil(priceNum / 2);
     input.amount_due = amountDueNum > 0 ? '₱' + amountDueNum.toLocaleString('en-PH') : '';
   } catch (err) {
-    console.error('[createBooking] pricing calculation failed:', err);
-    return { success: false, error: 'Pricing validation failed.', id: null, reference: null };
+    console.error('[createBooking] validation/pricing calculation failed:', err);
+    return { success: false, error: 'Pricing/capacity validation failed.', id: null, reference: null };
   }
 
   // 1. Recalculate capacity / expire stale bookings

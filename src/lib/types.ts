@@ -21,6 +21,8 @@ export interface Package {
   featured: boolean;
   features?: string[];
   inclusions?: string[];
+  capacity?: number;
+  allowsMultiDay?: boolean;
 }
 
 export interface FaqItem {

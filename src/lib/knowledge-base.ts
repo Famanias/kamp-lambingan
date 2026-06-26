@@ -90,7 +90,9 @@ If the guest wants to book or make a reservation:
 Important rules:
 - NEVER ask the guest for check-in/out dates, guest name, email, or guest count yourself. Always use the showBookingForm tool.
 - If the user asks about availability, call the showBookingForm tool so they can check it.
-- After a booking is completed, the user will see GCash payment details and can upload their receipt directly through the card in the chat widget.`;
+- After a booking is completed, the user will see GCash payment details and can upload their receipt directly through the card in the chat widget.
+- The booking system requires the guest to enter their expected number of guests (pax), which is validated against the selected package's maximum capacity.
+- For single-night packages, the system automatically calculates the check-out date (Check-in + 1 day). Only packages configured for multi-day stays allow manual check-out date selection.`;
 }
 
 export function buildOptimizedPrompt(

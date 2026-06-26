@@ -1,12 +1,8 @@
-# Hybrid AI Booking System (Form-Driven Architecture)
+# Implementation Plan: Simplified & Metadata-Driven Booking Form
 
-## Overview
+Simplify the booking experience while preserving important reservation information. Instead of hiding the guest count, require the user to enter their expected number of guests and validate it against the selected package's maximum capacity. For fixed-duration packages, automatically calculate the check-out date while displaying it as a read-only field so users clearly understand their reservation period.
 
-Redesign the AI booking experience by moving structured booking data collection entirely to the frontend while retaining the AI assistant as a conversational guide and knowledge assistant.
-
-Instead of collecting reservation details through multiple AI messages, the frontend will render interactive booking components inside the chat. The AI becomes responsible only for conversation, recommendations, explanations, and guiding the user through each step.
-
-This dramatically reduces token usage, improves reliability, and simplifies backend state management.
+These improvements will be applied consistently to both the **Chat Widget Booking Wizard** and the **Standalone Booking Page**.
 
 ---
 
@@ -14,416 +10,238 @@ This dramatically reduces token usage, improves reliability, and simplifies back
 
 > [!IMPORTANT]
 >
-> * Booking information will no longer be collected conversationally by the AI.
-> * The AI will trigger frontend booking components instead of asking for booking details.
-> * Booking availability, validation, email verification, payment instructions, and receipt upload will all be handled through backend APIs and frontend UI components.
-> * The AI will only receive the completed booking information after the booking form has been submitted.
-> * The `chat_sessions` table will remain, but it will store only conversational context rather than booking state.
+> * The **Number of Guests** field will remain in both booking forms and become **required**.
+>
+> * The maximum number of guests will be determined by the selected package.
+>
+> * The UI will display a helper message such as:
+>
+>   ```
+>   Maximum guests allowed: 20
+>   ```
+>
+>   and prevent users from entering a value greater than the package capacity.
+>
+> * The package configuration will define whether a package supports multiple-day stays using metadata (e.g. `allowsMultiDay`) instead of checking the package name.
+>
+> * For single-night packages, the **Check-out Date** will be automatically calculated as **Check-in + 1 day** and displayed as a **read-only** field instead of a user-editable input.
 
 ---
 
-# Goals
+# Proposed Changes
 
-## Primary Goals
+## 1. Package Metadata
 
-* Reduce booking conversations from ~43,000 input tokens to under 3,000.
-* Eliminate repetitive AI questions for structured booking data.
-* Improve booking reliability.
-* Reduce hallucinations.
-* Simplify prompts.
-* Improve overall user experience.
+### [MODIFY] Package Data Structure
 
----
+Extend each package definition with structured metadata.
 
-# Proposed User Flow
+Example:
 
-## 1. User starts conversation
-
-Example
-
-User:
-
-> I'd like to make a reservation.
-
-AI responds naturally:
-
-> I'd be happy to help. Please complete the booking form below.
-
-The frontend immediately renders a Booking Form Card.
-
----
-
-## 2. Booking Form
-
-The AI does not ask individual questions.
-
-Instead the form collects:
-
-* Guest name
-* Email
-* Phone number
-* Package
-* Check-in
-* Check-out
-* Number of guests
-* Notes (optional)
-
-The form performs client-side validation before submission.
-
----
-
-## 3. Availability Check
-
-When the user submits the form:
-
-Frontend
-
-↓
-
-POST `/api/booking/check`
-
-Backend
-
-↓
-
-Validate dates
-
-↓
-
-Check guest capacity
-
-↓
-
-Return result
-
-Possible responses
-
-Available
-
-↓
-
-Continue
-
-Unavailable
-
-↓
-
-Return alternative dates
-
-The AI is not involved.
-
----
-
-## 4. Email Verification
-
-If availability succeeds
-
-Frontend
-
-↓
-
-POST `/api/booking/start`
-
-Backend
-
-↓
-
-Generate verification code
-
-↓
-
-Store verification session
-
-↓
-
-Send email through Resend
-
-Frontend displays
-
-Verification Code Card
-
-User enters the code directly.
-
-No AI interaction required.
-
----
-
-## 5. Verification
-
-User submits verification code.
-
-Frontend
-
-↓
-
-POST `/api/booking/verify`
-
-Backend validates
-
-If successful
-
-↓
-
-Booking Summary Card appears.
-
----
-
-## 6. Booking Confirmation
-
-Booking Summary
-
-* Guest
-* Package
-* Dates
-* Guests
-* Total Amount
-* Downpayment / Full Payment
-
-User clicks
-
-Confirm Booking
-
-Frontend
-
-↓
-
-POST `/api/booking/complete`
-
-Backend creates booking.
-
-AI receives only:
-
-Booking completed successfully.
-
-Booking Reference:
-
-KL-XXXX
-
-The AI sends a friendly confirmation message.
-
----
-
-## 7. Payment
-
-Backend returns
-
-* Booking Reference
-* Amount Due
-* Payment Type
-* QR Image
-
-Frontend renders
-
-Payment Instruction Card
-
-including
-
-* QR Code
-* Upload Receipt button
-
-No AI formatting required.
-
----
-
-## 8. Receipt Upload
-
-User uploads receipt.
-
-Frontend
-
-↓
-
-POST `/api/booking/upload-receipt`
-
-Backend uploads to Supabase Storage.
-
-Booking updated.
-
-AI may simply respond:
-
-> Thank you! Your receipt has been received and is awaiting administrator review.
-
----
-
-# AI Responsibilities
-
-The AI should only:
-
-* Answer resort questions.
-* Recommend packages.
-* Explain policies.
-* Help users navigate the booking process.
-* Summarize completed bookings.
-* Respond to unusual or free-form questions.
-
-The AI should never:
-
-* Ask for booking form fields.
-* Track booking progress.
-* Validate dates.
-* Verify email codes.
-* Check availability.
-* Generate payment instructions.
-* Handle receipt uploads.
-
----
-
-# Backend Responsibilities
-
-The backend becomes responsible for:
-
-* Availability checking.
-* Capacity validation.
-* Booking validation.
-* Email verification.
-* Booking creation.
-* Payment handling.
-* Receipt uploads.
-* Booking status updates.
-
-All business rules are centralized.
-
----
-
-# Frontend Components
-
-## New Components
-
-### BookingFormCard
-
-Collects all booking information.
-
----
-
-### VerificationCard
-
-Allows entering the email verification code.
-
----
-
-### BookingSummaryCard
-
-Displays the completed reservation before confirmation.
-
----
-
-### PaymentInstructionCard
-
-Displays
-
-* QR code
-* Amount Due
-* Booking Reference
-* Upload Receipt button
-
----
-
-### ReceiptUploadCard
-
-Uploads proof of payment.
-
----
-
-# Chat API
-
-The chat endpoint no longer manages booking state.
-
-Instead it only controls conversation.
-
-The AI can request UI components.
-
-Example tool outputs
-
-```json
+```ts
 {
-  "action": "showBookingForm"
+  name: "Family Package",
+  price: 8500,
+  capacity: 20,
+  allowsMultiDay: false
 }
 ```
 
-```json
+```ts
 {
-  "action": "showVerificationCard"
+  name: "Exclusive Overnight",
+  price: 18000,
+  capacity: 40,
+  allowsMultiDay: true
 }
 ```
 
-```json
+The booking UI should rely on these properties instead of checking package names.
+
+Benefits:
+
+* Easier future package renaming.
+* Cleaner business logic.
+* Supports future package types without additional conditions.
+
+---
+
+## 2. Shared Package Helper
+
+### [NEW] Shared Utility
+
+Create a reusable helper that returns the complete package configuration.
+
+Example:
+
+```ts
+getSelectedPackage(packageName, packages)
+```
+
+Returns:
+
+```ts
 {
-  "action": "showPaymentCard"
+    name,
+    price,
+    capacity,
+    allowsMultiDay,
+    ...
 }
 ```
 
-The frontend renders the corresponding component.
+All booking components should use this helper instead of separate lookup functions.
 
 ---
 
-# Database
+## 3. Chat Widget Booking Wizard
 
-Existing tables remain.
+### [MODIFY] `ChatWidget.tsx`
 
-The `chat_sessions` table becomes much simpler.
+### Booking Form
 
-Suggested contents
+Replace package-specific helper functions with the shared package helper.
 
-* session_id
-* conversation_summary
-* last_intent
-* updated_at
+When a package is selected:
 
-Booking information remains in booking-related tables.
+* Retrieve the package metadata.
+* Store the selected package object for validation.
+* Update helper text and validation dynamically.
+
+### Number of Guests
+
+Keep the field visible.
+
+Make it **required**.
+
+Validation:
+
+* Minimum: 1
+* Maximum: Selected package capacity
+
+Display helper text beneath the field.
+
+Example:
+
+```
+Maximum guests allowed: 20
+```
+
+Prevent submission if the entered value exceeds the package capacity.
+
+### Check-out Date
+
+If
+
+```text
+package.allowsMultiDay === false
+```
+
+Automatically calculate:
+
+```
+checkOut = checkIn + 1 day
+```
+
+Display the calculated value as a **read-only** date field labeled:
+
+```
+Check-out Date
+
+July 16, 2026
+
+Automatically calculated for this package.
+```
+
+If
+
+```text
+package.allowsMultiDay === true
+```
+
+display the normal editable check-out date input.
 
 ---
 
-# Expected Token Usage
+## 4. Standalone Booking Form
 
-Current architecture
+### [MODIFY] `BookForm.tsx`
 
-* AI collects booking fields
-* AI tracks booking state
-* AI generates payment JSON
+Mirror the same behavior implemented in the chat booking wizard.
 
-Estimated
+### Package Selection
 
-15,000–43,000 input tokens
+Retrieve the package metadata using the shared helper.
 
-Optimized architecture
+### Number of Guests
 
-* Booking form handles structured input
-* Backend handles workflow
-* AI only explains and guides
+* Required.
+* Maximum equals package capacity.
+* Display helper text indicating the maximum allowed guests.
+* Prevent invalid values before submission.
 
-Estimated
+### Check-out Date
 
-1,500–3,000 input tokens
+For packages that do not allow multiple-day stays:
+
+* Automatically calculate check-out.
+* Display as a read-only field.
+
+For packages allowing multiple-day stays:
+
+* Display the editable check-out date picker.
+
+Maintain identical validation logic between both booking interfaces.
 
 ---
 
-# Benefits
+## 5. Validation
 
-## User Experience
+### Client-side
 
-* Faster booking
-* Fewer back-and-forth messages
-* Better validation
-* Immediate feedback
+Validate:
 
-## Reliability
+* Required guest count.
+* Guest count must not exceed package capacity.
+* Check-in date cannot be in the past.
+* For multi-day packages:
 
-* No hallucinated booking details
-* No missing required fields
-* Deterministic workflow
-* Stronger validation
+  * Check-out must be after check-in.
+* For single-night packages:
 
-## Performance
+  * Automatically calculate check-out.
 
-* Dramatically lower token usage
-* Faster AI responses
-* Reduced API costs
+Display clear validation messages before submission.
 
-## Maintainability
+---
 
-* Business logic isolated in backend
-* AI prompt greatly simplified
-* Easier future feature development
+### Backend
+
+Continue validating independently of the frontend.
+
+Never trust client-provided values.
+
+Verify:
+
+* Guest count does not exceed package capacity.
+* Check-out date matches package rules.
+* Availability remains valid.
+* Capacity calculations remain correct.
+
+---
+
+## 6. Knowledge Base
+
+### [MODIFY] `knowledge-base.ts`
+
+Update booking guidance to reflect the simplified booking flow.
+
+Mention:
+
+* Users provide their expected number of guests.
+* The system automatically validates guest limits based on the selected package.
+* Single-night packages automatically calculate the check-out date.
+* Only packages configured for multiple-day stays allow manual check-out selection.
 
 ---
 
@@ -431,18 +249,60 @@ Estimated
 
 ## Automated
 
-* Build the application (`npm run build`).
-* Verify all booking APIs return expected results.
-* Verify frontend components render correctly from AI actions.
+Run:
 
-## Manual
+```bash
+npm run build
+```
 
-* Start a booking through chat.
-* Confirm the booking form appears.
-* Submit valid and invalid data.
-* Verify availability checks.
-* Complete email verification.
-* Confirm booking creation.
-* Upload a payment receipt.
-* Verify the admin dashboard reflects the new booking and uploaded receipt.
-* Measure total AI token usage for a complete booking flow and compare it with the previous implementation.
+Verify successful compilation with no TypeScript or runtime errors.
+
+---
+
+## Manual Testing
+
+### Chat Booking Wizard
+
+* Verify the guest count field is visible and required.
+* Select different packages and confirm the helper text updates with the correct maximum capacity.
+* Attempt to enter more guests than allowed and verify validation prevents submission.
+* Select a single-night package and verify:
+
+  * Check-out is automatically calculated.
+  * The read-only check-out field is displayed.
+* Select a multi-day package and verify:
+
+  * Editable check-out input appears.
+  * Validation requires a valid date range.
+
+---
+
+### Standalone Booking Page
+
+Repeat the same validation scenarios and confirm behavior matches the chat booking wizard exactly.
+
+---
+
+# Expected Benefits
+
+## Improved User Experience
+
+* Fewer unnecessary inputs.
+* Clearer booking duration.
+* Immediate validation feedback.
+* Better understanding of package capacity.
+
+## Improved Data Quality
+
+* Records the actual expected number of guests instead of assuming maximum occupancy.
+* Produces more accurate booking statistics and operational reports.
+
+## Better Maintainability
+
+* Package behavior is driven by structured metadata rather than package names.
+* A shared package helper eliminates duplicate logic.
+* Booking rules remain consistent across all booking interfaces.
+
+## Future Scalability
+
+New packages can be introduced by updating package metadata without changing booking logic, making the system easier to extend and maintain over time.

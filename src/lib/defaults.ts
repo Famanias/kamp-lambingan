@@ -45,6 +45,8 @@ export const DEFAULT_CONTENT: SiteContent = {
       price: '₱3,500',
       featured: false,
       features: ['Air conditioned room', 'River access & dipping pool', 'In-room amenities', 'Comprehensive concierge'],
+      capacity: 2,
+      allowsMultiDay: false,
     },
     {
       label: 'Best Weekend',
@@ -53,6 +55,8 @@ export const DEFAULT_CONTENT: SiteContent = {
       price: '₱5,500',
       featured: true,
       features: ['Air conditioned room', 'All inclusive activities', 'Riverside BBQ & cooking area', 'Bonfire setup', 'Complimentary meals (x2)', 'Customized room coordinator'],
+      capacity: 2,
+      allowsMultiDay: false,
     },
     {
       label: 'Best for Groups',
@@ -60,6 +64,8 @@ export const DEFAULT_CONTENT: SiteContent = {
       price: '₱15,000',
       featured: false,
       features: ['2–3 days all connected', 'All inclusive activities', 'Private BBQ & cooking area', 'Guided tours', 'Bonfire setup', 'Dedicated room coordinator'],
+      capacity: 20,
+      allowsMultiDay: true,
     },
   ],
   faqTitle: 'Frequently Asked Questions',

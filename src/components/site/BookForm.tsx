@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 // import ReCAPTCHA from 'react-google-recaptcha'; // re-enable when live
 import { createBooking, getFullyBookedDates } from '@/actions/bookings';
 import { SiteContent } from '@/lib/types';
+import { getSelectedPackage, getNextDayString, formatHumanDate } from '@/lib/package-helper';
 
 interface BookFormProps {
   content: SiteContent;
@@ -46,7 +47,9 @@ export default function BookForm({ content }: BookFormProps) {
   });
 
   // Derived price info (must be after form state)
-  const selectedPackage = content.packages.find(p => p.name === form.packageName);
+  const selectedPackage = getSelectedPackage(form.packageName, content.packages);
+  const maxCapacity = selectedPackage ? selectedPackage.capacity : 20;
+  const allowsMultiDay = selectedPackage ? selectedPackage.allowsMultiDay : false;
   const priceNum = selectedPackage ? parseInt(selectedPackage.price.replace(/[^\d]/g, ''), 10) || 0 : 0;
   const amountDueNum = paymentType === 'full' ? priceNum : Math.ceil(priceNum / 2);
   const amountDueFormatted = amountDueNum > 0 ? '\u20B1' + amountDueNum.toLocaleString('en-PH') : '';
@@ -71,7 +74,51 @@ export default function BookForm({ content }: BookFormProps) {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    
+    if (name === 'packageName') {
+      const selectedPkg = getSelectedPackage(value, content.packages);
+      setForm((prev) => {
+        const updated = { ...prev, packageName: value };
+        if (selectedPkg) {
+          const currentPax = parseInt(prev.pax, 10);
+          if (!isNaN(currentPax) && currentPax > selectedPkg.capacity) {
+            updated.pax = selectedPkg.capacity.toString();
+          }
+          if (!selectedPkg.allowsMultiDay && prev.checkIn) {
+            updated.checkOut = getNextDayString(prev.checkIn);
+          }
+        }
+        return updated;
+      });
+      return;
+    }
+
+    if (name === 'pax') {
+      const val = parseInt(value, 10);
+      setForm((prev) => {
+        const selectedPkg = getSelectedPackage(prev.packageName, content.packages);
+        const capacity = selectedPkg ? selectedPkg.capacity : 20;
+        let clampedVal = value;
+        if (value !== '') {
+          if (!isNaN(val)) {
+            if (val > capacity) {
+              clampedVal = capacity.toString();
+            } else if (val < 1) {
+              clampedVal = '1';
+            } else {
+              clampedVal = val.toString();
+            }
+          } else {
+            clampedVal = '1';
+          }
+        }
+        return { ...prev, pax: clampedVal };
+      });
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const isRangeBooked = (start: string, end: string) => {
@@ -95,6 +142,10 @@ export default function BookForm({ content }: BookFormProps) {
     }
 
     if (name === 'checkOut') {
+      const selectedPkg = getSelectedPackage(form.packageName, content.packages);
+      const isMulti = selectedPkg ? selectedPkg.allowsMultiDay : false;
+      if (!isMulti) return; // read-only checkOut should not trigger changes
+      
       if (form.checkIn && value <= form.checkIn) {
         setError('Check-out must be after check-in.');
         return;
@@ -109,21 +160,34 @@ export default function BookForm({ content }: BookFormProps) {
     }
 
     if (name === 'checkIn') {
-      let nextCheckOut = form.checkOut;
-      const hadCheckOut = Boolean(nextCheckOut);
-      let cleared = false;
-      if (nextCheckOut && nextCheckOut <= value) {
-        nextCheckOut = '';
-        cleared = true;
-      } else if (nextCheckOut && isRangeBooked(value, nextCheckOut)) {
-        nextCheckOut = '';
-        cleared = true;
-      }
-      setForm((prev) => ({ ...prev, checkIn: value, checkOut: nextCheckOut }));
-      if (cleared && hadCheckOut) {
-        setError('Please select a new check-out date.');
-      } else {
+      const selectedPkg = getSelectedPackage(form.packageName, content.packages);
+      const isMulti = selectedPkg ? selectedPkg.allowsMultiDay : false;
+      
+      if (!isMulti) {
+        const nextCheckOut = getNextDayString(value);
+        if (bookedDatesSet.has(nextCheckOut) || isRangeBooked(value, nextCheckOut)) {
+          setError('Selected stay dates overlap with existing bookings.');
+          return;
+        }
         setError(null);
+        setForm((prev) => ({ ...prev, checkIn: value, checkOut: nextCheckOut }));
+      } else {
+        let nextCheckOut = form.checkOut;
+        const hadCheckOut = Boolean(nextCheckOut);
+        let cleared = false;
+        if (nextCheckOut && nextCheckOut <= value) {
+          nextCheckOut = '';
+          cleared = true;
+        } else if (nextCheckOut && isRangeBooked(value, nextCheckOut)) {
+          nextCheckOut = '';
+          cleared = true;
+        }
+        setForm((prev) => ({ ...prev, checkIn: value, checkOut: nextCheckOut }));
+        if (cleared && hadCheckOut) {
+          setError('Please select a new check-out date.');
+        } else {
+          setError(null);
+        }
       }
       return;
     }
@@ -153,8 +217,17 @@ export default function BookForm({ content }: BookFormProps) {
 
   const handleStep1 = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.email || !form.phone || !form.packageName || !form.checkIn || !form.checkOut) {
+    if (!form.name || !form.email || !form.phone || !form.packageName || !form.checkIn || !form.checkOut || !form.pax) {
       setError('Please fill in all required fields.');
+      return;
+    }
+    const guestCount = parseInt(form.pax, 10);
+    if (isNaN(guestCount) || guestCount < 1) {
+      setError('Number of guests must be at least 1.');
+      return;
+    }
+    if (selectedPackage && guestCount > maxCapacity) {
+      setError(`Number of guests exceeds the maximum capacity of ${maxCapacity} for this package.`);
       return;
     }
     if (form.checkOut <= form.checkIn) {
@@ -404,15 +477,21 @@ export default function BookForm({ content }: BookFormProps) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date *</label>
-                <input
-                  type="date"
-                  name="checkOut"
-                  value={form.checkOut}
-                  onChange={handleDateChange}
-                  required
-                  min={form.checkIn || new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
+                {allowsMultiDay ? (
+                  <input
+                    type="date"
+                    name="checkOut"
+                    value={form.checkOut}
+                    onChange={handleDateChange}
+                    required
+                    min={form.checkIn || new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
+                  />
+                ) : (
+                  <div className="w-full px-4 py-[11px] border border-gray-300 rounded-lg bg-gray-50 text-gray-400 font-medium select-none">
+                    {form.checkIn ? formatHumanDate(form.checkOut) : 'Select check-in first'}
+                  </div>
+                )}
               </div>
             </div>
             {(bookedDatesLoading || bookedDatesError) && (
@@ -481,9 +560,10 @@ export default function BookForm({ content }: BookFormProps) {
                 onChange={handleChange}
                 required
                 min="1"
-                max="50"
+                max={maxCapacity}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40"
               />
+              <span className="text-xs text-gray-400 block mt-1">Maximum guests allowed: {maxCapacity}</span>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Special Requests (optional)</label>

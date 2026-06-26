@@ -3,6 +3,7 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport, isTextUIPart, UIMessage } from 'ai';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { getSelectedPackage, getNextDayString, formatHumanDate } from '@/lib/package-helper';
 
 const SUGGESTED_QUESTIONS = [
   'What packages do you offer?',
@@ -313,6 +314,10 @@ function BookingFormCard({
     return `${yyyy}-${mm}-${dd}`;
   };
 
+  const selectedPkg = getSelectedPackage(details.package_name, packages);
+  const maxCapacity = selectedPkg ? selectedPkg.capacity : 20;
+  const allowsMultiDay = selectedPkg ? selectedPkg.allowsMultiDay : false;
+
   return (
     <form onSubmit={onSubmit} className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs space-y-3 shadow-sm text-gray-800">
       <div className="flex items-center gap-1.5 text-emerald-800 font-bold text-sm">
@@ -336,7 +341,7 @@ function BookingFormCard({
             value={details.guest_name}
             onChange={(e) => onChange('guest_name', e.target.value)}
             className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-            placeholder="John Doe"
+            placeholder="Juan dela Cruz"
           />
         </div>
 
@@ -349,7 +354,7 @@ function BookingFormCard({
               value={details.guest_email}
               onChange={(e) => onChange('guest_email', e.target.value)}
               className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-              placeholder="john@example.com"
+              placeholder="juan@email.com"
             />
           </div>
           <div>
@@ -395,15 +400,21 @@ function BookingFormCard({
             />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-gray-500 mb-0.5">Check-out</label>
-            <input
-              type="date"
-              required
-              min={details.check_in || getTodayString()}
-              value={details.check_out}
-              onChange={(e) => onChange('check_out', e.target.value)}
-              className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
-            />
+            <label className="block text-[10px] font-semibold text-gray-500 mb-0.5">Check-out Date</label>
+            {allowsMultiDay ? (
+              <input
+                type="date"
+                required
+                min={details.check_in || getTodayString()}
+                value={details.check_out}
+                onChange={(e) => onChange('check_out', e.target.value)}
+                className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary bg-white"
+              />
+            ) : (
+              <div className="w-full text-xs px-2.5 py-2 border border-gray-200 rounded-xl bg-gray-50 text-gray-400 font-medium leading-tight select-none">
+                {details.check_in ? formatHumanDate(details.check_out) : 'Select check-in first'}
+              </div>
+            )}
           </div>
         </div>
 
@@ -414,10 +425,15 @@ function BookingFormCard({
               type="number"
               required
               min={1}
+              max={maxCapacity}
               value={details.pax}
-              onChange={(e) => onChange('pax', parseInt(e.target.value) || '')}
+              onChange={(e) => {
+                const val = parseInt(e.target.value);
+                onChange('pax', isNaN(val) ? '' : val);
+              }}
               className="w-full text-xs px-2.5 py-1.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
             />
+            <span className="text-[9px] text-gray-400 block mt-0.5">Maximum allowed: {maxCapacity}</span>
           </div>
           <div>
             <label className="block text-[10px] font-semibold text-gray-500 mb-0.5">Payment Option</label>
@@ -733,6 +749,30 @@ export default function ChatWidget({ content }: { content?: any }) {
   const updateBookingDetails = (details: typeof bookingDetails) => {
     setBookingDetails(details);
     sessionStorage.setItem('kl_booking_details', JSON.stringify(details));
+  };
+
+  const handleCardFieldChange = (field: string, val: any) => {
+    const updated = { ...bookingDetails, [field]: val };
+    const selectedPkg = getSelectedPackage(updated.package_name, packagesList);
+
+    if (field === 'package_name') {
+      if (selectedPkg) {
+        if (typeof updated.pax === 'number' && updated.pax > selectedPkg.capacity) {
+          updated.pax = selectedPkg.capacity;
+        }
+        if (!selectedPkg.allowsMultiDay && updated.check_in) {
+          updated.check_out = getNextDayString(updated.check_in);
+        }
+      }
+    }
+
+    if (field === 'check_in') {
+      if (selectedPkg && !selectedPkg.allowsMultiDay && val) {
+        updated.check_out = getNextDayString(val);
+      }
+    }
+
+    updateBookingDetails(updated);
   };
 
   // Restore booking states from sessionStorage on mount
@@ -1174,7 +1214,7 @@ export default function ChatWidget({ content }: { content?: any }) {
             {activeBookingStep === 'form' && (
               <BookingFormCard
                 details={bookingDetails}
-                onChange={(field, val) => updateBookingDetails({ ...bookingDetails, [field]: val })}
+                onChange={handleCardFieldChange}
                 onSubmit={handleFormSubmit}
                 loading={cardLoading}
                 error={cardError}
