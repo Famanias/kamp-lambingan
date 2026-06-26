@@ -31,7 +31,7 @@ export default async function Home() {
       </main>
       <Footer content={content} />
       <NavbarClient />
-      <ChatWidget />
+      <ChatWidget content={content} />
     </>
   );
 }

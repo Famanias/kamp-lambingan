@@ -513,7 +513,11 @@ export async function getBooking(id: string) {
   return { data, error: null };
 }
 
-export async function updateBookingStatus(id: string, status: 'confirmed' | 'cancelled') {
+export async function updateBookingStatus(
+  id: string,
+  status: 'confirmed' | 'cancelled',
+  reason?: 'payment_rejected'
+) {
   try {
     await requireAdmin();
   } catch (err: any) {
@@ -556,6 +560,17 @@ export async function updateBookingStatus(id: string, status: 'confirmed' | 'can
               <p><strong>Check-out:</strong> ${booking.check_out}</p>
               <p>We can't wait to welcome you to Kamp Lambingan! See you soon. 🌿</p>
               <p>Questions? Message us on <a href="https://www.facebook.com/kamplambingan">Facebook</a>.</p>
+            `,
+          });
+        } else if (reason === 'payment_rejected') {
+          await resend.emails.send({
+            from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
+            to: booking.guest_email,
+            subject: 'Your payment was rejected — Booking Cancelled',
+            html: `
+              <h2>Hi ${safeName},</h2>
+              <p>Unfortunately, your booking for <strong>${safePackage}</strong> on ${booking.check_in} has been <strong>cancelled</strong> because the uploaded proof of payment was rejected.</p>
+              <p>If you believe this is a mistake, please make a new booking with a valid receipt, or reach out to us on <a href="https://www.facebook.com/kamplambingan">Facebook</a>.</p>
             `,
           });
         } else {

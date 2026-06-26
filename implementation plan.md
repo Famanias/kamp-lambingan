@@ -1,400 +1,109 @@
-# Booking Capacity System
+# Enhanced AI Booking System with Resend Email Verification and AI-Assisted Manual Payment
 
-Transition the booking system from a binary availability model ("is date booked") to a guest-capacity-based model. Every date defaults to a capacity of 50 guests, which can be customized by administrators in the admin panel. Date availability is determined by the remaining capacity for all dates in a requested check-in/check-out range.
+Implement a secure, multi-step email verification flow using Resend, enhance the AI booking assistant flow, integrate GCash QR payment instructions (with structured JSON in chat), support receipt upload inside the chat widget, and add "Reject Payment" action in the Admin Dashboard.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Booking Occupancy Rules**
->
-> Capacity consumption is calculated using accommodation-style occupancy:
->
-> * Occupied dates include the check-in date.
-> * Occupied dates exclude the check-out date.
->
-> Example:
->
-> * Check-in: `2026-07-01`
-> * Check-out: `2026-07-03`
->
-> Capacity is consumed on:
->
-> * `2026-07-01`
-> * `2026-07-02`
->
-> Capacity is **not** consumed on:
->
-> * `2026-07-03`
->
-> Formula:
->
-> ```
-> check_in <= date < check_out
-> ```
-
-> [!IMPORTANT]
-> **Pending Booking Capacity Consumption**
->
-> To reduce overbooking risk, both `pending` and `confirmed` bookings consume date capacity.
->
-> However, stale pending bookings must not permanently reserve capacity.
->
-> Capacity-consuming statuses:
->
-> * `pending` (within expiration window)
-> * `confirmed`
->
-> Non-capacity-consuming statuses:
->
-> * `cancelled`
-> * `archived`
-> * `expired`
->
-> Pending bookings older than the configured expiration period (e.g. 30 minutes) should automatically transition to `expired`.
-
-> [!IMPORTANT]
-> **AI Confirmation Requirement**
->
-> The AI booking assistant must never create a booking immediately after collecting all required information.
->
-> Before invoking the booking tool, the AI must:
->
-> 1. Present a complete booking summary.
-> 2. Ask for explicit confirmation.
-> 3. Wait for a clear confirmation response.
->
-> Accepted confirmation examples:
->
-> * "Yes"
-> * "Confirm"
-> * "Proceed"
-> * "Book it"
->
-> Only after explicit confirmation may the booking creation tool be called.
+> - We will use the existing `booking_verifications` table in Supabase.
+> - We will add three API routes: `POST /api/booking/start`, `POST /api/booking/verify`, and `POST /api/booking/complete`.
+> - The AI Assistant will transition from direct booking creation (`createBooking` tool) to a multi-step verification-first flow using three new tools: `startBookingVerification`, `verifyBookingCode`, and `completeBooking`.
+> - GCash QR image configuration will be retrieved dynamically from site content (`content.gcashQrImage`).
 
 ## Open Questions
 
-None at this stage. We have all details needed.
-
----
+> [!NOTE]
+> None at this time. All requirements map directly to the provided `D:\repos\kamp-lambingan\implementation plan.md` and database schemas.
 
 ## Proposed Changes
 
-### Database Component
-
-Create a table to store custom date-specific capacities.
-
-#### [NEW] date-capacities.sql
-
-```sql
-CREATE TABLE IF NOT EXISTS public.date_capacities (
-  date          date PRIMARY KEY,
-  max_capacity  integer NOT NULL CHECK (max_capacity >= 0)
-);
-
-ALTER TABLE public.date_capacities ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow public read date_capacities"
-ON public.date_capacities
-FOR SELECT
-TO anon, authenticated
-USING (true);
-
-CREATE POLICY "Allow admin all date_capacities"
-ON public.date_capacities
-FOR ALL
-TO authenticated
-USING (
-  auth.uid() IN (
-    SELECT user_id FROM public.admins
-  )
-)
-WITH CHECK (
-  auth.uid() IN (
-    SELECT user_id FROM public.admins
-  )
-);
-```
-
-### Booking Expiration Support
-
-If not already implemented, add support for automatic expiration of stale pending bookings.
-
-Requirements:
-
-* Pending bookings expire after the configured timeout.
-* Expired bookings no longer consume capacity.
-* Capacity calculations must ignore expired bookings.
+### Database Layer
+No database changes are needed since `booking_verifications` is already present and `bookings` table structure supports the required status and payment columns.
 
 ---
 
-### Backend Component
+### Backend API & Actions
 
-#### [MODIFY] bookings.ts
+#### [NEW] [start/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/start/route.ts)
+Create the endpoint `POST /api/booking/start` to:
+- Validate input guest details and dates.
+- Check date capacity.
+- Clean up expired verification sessions in `booking_verifications`.
+- Throttle verification requests to 1 request per 60 seconds per email.
+- Rate limit attempts by IP (max 10 sessions per hour).
+- Generate a 6-digit cryptographically secure code.
+- Save the temporary session to `booking_verifications` (expires in 10 minutes).
+- Send the verification email using Resend.
 
-Add new server actions:
+#### [NEW] [verify/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/verify/route.ts)
+Create the endpoint `POST /api/booking/verify` to:
+- Look up the session by ID.
+- Check expiration and number of attempts (max 5 attempts).
+- Validate the input code.
+- If correct, mark `verified = true` in the DB.
+- If incorrect, increment attempts; if attempts reach 5, invalidate the session.
 
-* `getDateCapacities()`
-* `setDateCapacity(date: string, maxCapacity: number)`
-* `deleteDateCapacity(date: string)`
+#### [NEW] [complete/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/complete/route.ts)
+Create the endpoint `POST /api/booking/complete` to:
+- Retrieve the verified session.
+- Re-check date capacity.
+- Create the booking using the `create_booking_safe` RPC in Supabase.
+- Delete the verification session.
+- Send confirmation email to guest and admin.
+- Return references and amounts due.
 
-All administrative actions must use `requireAdmin()`.
+#### [NEW] [upload-receipt/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/upload-receipt/route.ts)
+Create the endpoint `POST /api/booking/upload-receipt` to:
+- Receive a multipart form upload containing `bookingId` and `receipt` image file.
+- Perform size/type validation on the server.
+- Upload to Supabase Storage and update the booking record.
 
-Add helper:
-
-```ts
-getCapacityForDates(checkIn, checkOut)
-```
-
-Returns per-date capacity information:
-
-```ts
-{
-  date,
-  maximumCapacity,
-  bookedGuests,
-  remainingCapacity,
-  isFullyBooked
-}
-```
-
-Capacity calculations must:
-
-* Use `check_in <= date < check_out`
-* Include valid `pending` bookings
-* Include `confirmed` bookings
-* Exclude `cancelled`
-* Exclude `archived`
-* Exclude `expired`
-
-Rename:
-
-```ts
-getBookedDates()
-```
-
-to:
-
-```ts
-getFullyBookedDates()
-```
-
-since the function now represents dates whose remaining capacity has reached zero.
+#### [MODIFY] [bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts)
+- Modify `updateBookingStatus` to support an optional `reason` parameter (e.g. `'payment_rejected'`).
+- If payment is rejected, update status to `'cancelled'` and send a tailored email explaining that the uploaded proof of payment was rejected.
 
 ---
 
-### Overbooking Protection
+### AI Assistant & Chat API
 
-#### [CRITICAL]
+#### [MODIFY] [route.ts](file:///d:/repos/kamp-lambingan/src/app/api/chat/route.ts)
+- Remove `createBooking` tool.
+- Add `startBookingVerification` tool (which calls the `/api/booking/start` logic or DB writes).
+- Add `verifyBookingCode` tool (which calls the `/api/booking/verify` logic).
+- Add `completeBooking` tool (which calls the `/api/booking/complete` logic).
 
-Capacity validation must not rely solely on a pre-insert availability check.
-
-The system must perform booking creation in a concurrency-safe manner to prevent simultaneous requests from exceeding capacity.
-
-Acceptable approaches include:
-
-* Database transactions
-* Row locking
-* Serializable isolation
-* Atomic reservation logic
-
-The booking process must guarantee that two concurrent requests cannot both consume the same remaining capacity.
+#### [MODIFY] [knowledge-base.ts](file:///d:/repos/kamp-lambingan/src/lib/knowledge-base.ts)
+- Update the system instructions for booking via chat.
+- Guide the AI to collect details -> confirm -> start email verification -> request verification code -> verify -> confirm again -> complete booking -> return structured JSON payment instructions containing the QR code, booking reference, and amount due.
 
 ---
 
-### Booking Creation Flow
+### Frontend Components
 
-#### [MODIFY] createBooking(formData)
+#### [MODIFY] [page.tsx](file:///d:/repos/kamp-lambingan/src/app/page.tsx)
+- Pass `content` prop to `<ChatWidget />`.
 
-Before creating a booking:
+#### [MODIFY] [ChatWidget.tsx](file:///d:/repos/kamp-lambingan/src/components/site/ChatWidget.tsx)
+- Accept `content` prop.
+- Add support for detecting and parsing structured JSON payment instructions from the AI message text.
+- Render a premium Payment Card if JSON instructions are received.
+- Add an interactive file upload input within the payment card allowing the guest to upload their receipt directly inside the chat.
+- Implement file type/size validation and trigger the `/api/booking/upload-receipt` API.
 
-1. Recalculate capacity for every date in the requested stay.
-2. Verify remaining capacity is sufficient for the requested `pax`.
-3. Perform validation and insertion inside a concurrency-safe transaction.
-4. Reject the booking if any date in the range lacks sufficient capacity.
+#### [MODIFY] [BookingActions.tsx](file:///d:/repos/kamp-lambingan/src/components/admin/BookingActions.tsx)
+- Add a "Reject Payment" button.
+- Trigger `updateBookingStatus` with status `'cancelled'` and reason `'payment_rejected'` upon user confirmation.
 
----
-
-### AI Assistant Component
-
-#### [MODIFY] route.ts
-
-Update the `checkAvailability` tool.
-
-Tool description should explicitly state that availability is capacity-based rather than date-based.
-
-Return:
-
-```ts
-{
-  available: boolean,
-  maxGuestsAllowed: number,
-  maximumCapacity: number,
-  bookedGuests: number,
-  remainingCapacity: number,
-  isFullyBooked: boolean,
-  details: Array<{
-    date: string,
-    maximumCapacity: number,
-    bookedGuests: number,
-    remainingCapacity: number,
-    isFullyBooked: boolean
-  }>
-}
-```
-
-Definitions:
-
-* `maxGuestsAllowed` = minimum remaining capacity across all dates in the requested range.
-* `available` = requested guest count fits within `maxGuestsAllowed`.
-
-The AI should use `maxGuestsAllowed` when responding to users.
-
-Example:
-
-> "This date range is available for up to 12 guests."
-
----
-
-### AI Booking Guardrails
-
-Update booking instructions:
-
-* Never auto-create bookings after collecting information.
-* Always present a booking summary.
-* Always ask for confirmation.
-* Only call the booking tool after explicit user approval.
-* Never infer confirmation from unrelated messages.
-
----
-
-### Admin Dashboard Component
-
-#### [MODIFY] page.tsx
-
-* Fetch custom capacities using `getDateCapacities()`.
-* Render a new `CapacityManager` component.
-
-#### [NEW] CapacityManager.tsx
-
-Features:
-
-* Date selector
-* Maximum capacity input
-* Save/Update button
-* Reset-to-default button
-* Table showing:
-
-  * Date
-  * Custom capacity
-  * Current booked guests
-  * Remaining capacity
-
-This gives administrators visibility into actual utilization rather than only configured limits.
-
----
-
-## Verification Plan (DO NOT EXECUTE THIS YET! THIS IS ONLY FOR REFERENCE!)
+## Verification Plan
 
 ### Automated Tests
-
-* Build verification: `npm run build`
-* Capacity calculation unit tests
-* Pending booking expiration tests
-* Concurrent booking protection tests
+- Build and compile check: `npm run build`
 
 ### Manual Verification
-
-#### 1. Set Custom Capacity
-
-Set:
-
-```text
-2026-07-01 → 10 guests
-```
-
-Verify admin dashboard updates correctly.
-
-#### 2. Capacity Validation
-
-Create booking:
-
-```text
-2026-07-01 → 2026-07-02
-5 guests
-```
-
-Verify success.
-
-Attempt booking:
-
-```text
-2026-07-01 → 2026-07-02
-8 guests
-```
-
-Verify rejection because only 5 spots remain.
-
-#### 3. Check-Out Day Validation
-
-Booking A:
-
-```text
-Check-in: 2026-07-01
-Check-out: 2026-07-03
-5 guests
-```
-
-Booking B:
-
-```text
-Check-in: 2026-07-03
-Check-out: 2026-07-05
-5 guests
-```
-
-Verify both are allowed because the checkout day is not counted as occupied.
-
-#### 4. Pending Expiration
-
-Create a pending booking.
-
-Allow it to expire.
-
-Verify:
-
-* Status becomes `expired`.
-* Capacity becomes available again.
-
-#### 5. AI Assistant Verification
-
-Ask:
-
-> "Can I book July 1–3 for 8 guests?"
-
-Verify:
-
-* AI checks remaining capacity.
-* AI reports available capacity.
-* AI does not create a booking automatically.
-* AI presents a booking summary.
-* AI waits for explicit confirmation.
-
-#### 6. Concurrency Test
-
-Submit two simultaneous booking requests that would exceed remaining capacity if both succeeded.
-
-Verify:
-
-* One request succeeds.
-* One request fails.
-* Capacity is never exceeded.
-
-#### 7. Reset Capacity
-
-Delete the custom capacity entry.
-
-Verify:
-
-* Capacity returns to the default value of 50.
-* Availability updates correctly.
+- Start a chat session, request a booking, and verify the verification email is sent.
+- Enter incorrect codes to verify rate limits and max attempts.
+- Enter the correct code to verify successful verification.
+- Confirm booking creation and check that booking is added as `pending` in the DB.
+- Verify that the chat displays the GCash QR code, amount due, and booking reference.
+- Upload a payment receipt through the chat widget and check if it's successfully uploaded to Supabase storage.
+- Log in to the Admin Dashboard, locate the booking, view the uploaded receipt, and test "Confirm Booking" and "Reject Payment" buttons, confirming they send the appropriate emails and update statuses.

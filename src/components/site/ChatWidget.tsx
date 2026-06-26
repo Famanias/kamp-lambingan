@@ -114,6 +114,167 @@ type BookingResult = {
   error?: string;
 };
 
+function tryParsePaymentInstructions(text: string) {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && parsed.message && (parsed.attachments || parsed.reference)) {
+        return parsed as {
+          message: string;
+          reference?: string;
+          booking_id?: string;
+          amount_due?: string;
+          attachments?: Array<{ type: string; url: string }>;
+        };
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+function PaymentInstructionCard({
+  instructions,
+  content,
+}: {
+  instructions: {
+    message: string;
+    reference?: string;
+    booking_id?: string;
+    amount_due?: string;
+    attachments?: Array<{ type: string; url: string }>;
+  };
+  content?: any;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(() => {
+    if (typeof window !== 'undefined' && instructions.booking_id) {
+      return sessionStorage.getItem(`kl_receipt_${instructions.booking_id}`);
+    }
+    return null;
+  });
+
+  const qrCodeUrl = instructions.attachments?.[0]?.url || content?.gcashQrImage;
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Size check
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('File size exceeds 5MB limit.');
+      return;
+    }
+
+    // Type check
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      setUploadError('Invalid image format. Please upload PNG, JPG, or WebP.');
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('bookingId', instructions.booking_id || '');
+      formData.append('receipt', file);
+
+      const res = await fetch('/api/booking/upload-receipt', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        setUploadError(result.error || 'Failed to upload receipt.');
+      } else {
+        setReceiptUrl(result.receiptUrl);
+        if (instructions.booking_id) {
+          sessionStorage.setItem(`kl_receipt_${instructions.booking_id}`, result.receiptUrl);
+        }
+      }
+    } catch (err) {
+      setUploadError('An error occurred during upload. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs space-y-3 text-gray-800 shadow-sm">
+      <p className="font-semibold text-emerald-800 text-sm flex items-center gap-1.5 font-bold">
+        <span className="material-icons text-base">payments</span> GCash Payment Instructions
+      </p>
+      
+      <p className="leading-relaxed text-gray-700">{instructions.message}</p>
+
+      <div className="bg-white rounded-xl p-3 border border-emerald-100 space-y-2">
+        {instructions.reference && (
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400">Reference:</span>
+            <span className="font-mono font-bold text-gray-900 tracking-wider select-all">{instructions.reference}</span>
+          </div>
+        )}
+        {instructions.amount_due && (
+          <div className="flex justify-between items-center">
+            <span className="text-gray-400">Amount Due:</span>
+            <span className="font-bold text-emerald-700 text-sm font-semibold">{instructions.amount_due}</span>
+          </div>
+        )}
+      </div>
+
+      {qrCodeUrl && (
+        <div className="bg-white rounded-xl p-3 border border-emerald-100 flex flex-col items-center">
+          <img src={qrCodeUrl} alt="GCash QR Code" className="max-h-48 object-contain rounded-lg" />
+          {content?.gcashNumber && (
+            <div className="mt-2 text-center">
+              <span className="text-[10px] uppercase text-gray-400 block">GCash Number</span>
+              <span className="font-mono font-bold text-gray-800 text-sm">{content.gcashNumber}</span>
+              {content.gcashName && <span className="text-[10px] text-gray-500 block">({content.gcashName})</span>}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="border-t border-emerald-200/50 pt-3">
+        {receiptUrl ? (
+          <div className="bg-emerald-100 text-emerald-800 rounded-xl p-2.5 flex items-center gap-2 font-medium">
+            <span className="material-icons text-base">check_circle</span>
+            <span>Receipt uploaded successfully! Under review.</span>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="font-medium text-gray-700">Upload payment receipt proof:</p>
+            <label className="flex flex-col items-center justify-center border-2 border-dashed border-emerald-200 rounded-xl p-4 bg-white hover:bg-emerald-50/50 transition-colors cursor-pointer">
+              <span className="material-icons text-emerald-600 text-xl mb-1">cloud_upload</span>
+              <span className="font-semibold text-emerald-700">Choose receipt image</span>
+              <span className="text-[10px] text-gray-400 mt-0.5">PNG, JPG, or WebP (max 5MB)</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                disabled={uploading}
+                className="hidden"
+              />
+            </label>
+            {uploading && (
+              <p className="text-emerald-700 flex items-center gap-1.5 justify-center font-medium animate-pulse">
+                <span className="material-icons animate-spin text-sm">sync</span> Uploading receipt...
+              </p>
+            )}
+            {uploadError && <p className="text-red-600 text-center font-medium">{uploadError}</p>}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BookingConfirmCard({ result }: { result: BookingResult }) {
   if (!result.success) {
     return (
@@ -143,7 +304,7 @@ function BookingConfirmCard({ result }: { result: BookingResult }) {
   );
 }
 
-export default function ChatWidget() {
+export default function ChatWidget({ content }: { content?: any }) {
   const [open, setOpen] = useState(false);
   const [hasOpened, setHasOpened] = useState(false);
   const [input, setInput] = useState('');
@@ -263,7 +424,8 @@ export default function ChatWidget() {
                 ? m.parts.find(
                     (p) =>
                       p.type === 'dynamic-tool' &&
-                      (p as { type: string; toolName?: string }).toolName === 'createBooking' &&
+                      ((p as { type: string; toolName?: string }).toolName === 'completeBooking' ||
+                       (p as { type: string; toolName?: string }).toolName === 'createBooking') &&
                       (p as { state: string }).state === 'output-available'
                   )
                 : undefined;
@@ -273,6 +435,8 @@ export default function ChatWidget() {
                   ? ((bookingToolPart as { output: unknown }).output as BookingResult)
                   : undefined;
 
+              const paymentInstructions = m.role === 'assistant' ? tryParsePaymentInstructions(text) : null;
+
               return (
                 <div
                   key={m.id}
@@ -280,15 +444,19 @@ export default function ChatWidget() {
                 >
                   <div className={`${m.role === 'user' ? 'max-w-[85%]' : 'w-full'}`}>
                     {text && (
-                      <div
-                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                          m.role === 'user'
-                            ? 'bg-primary text-white rounded-br-sm whitespace-pre-wrap'
-                            : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                        }`}
-                      >
-                        {m.role === 'user' ? text : parseMarkdown(text)}
-                      </div>
+                      paymentInstructions ? (
+                        <PaymentInstructionCard instructions={paymentInstructions} content={content} />
+                      ) : (
+                        <div
+                          className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
+                            m.role === 'user'
+                              ? 'bg-primary text-white rounded-br-sm whitespace-pre-wrap'
+                              : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                          }`}
+                        >
+                          {m.role === 'user' ? text : parseMarkdown(text)}
+                        </div>
+                      )
                     )}
                     {bookingResult && <BookingConfirmCard result={bookingResult} />}
                   </div>

@@ -1,45 +1,63 @@
-# Booking Capacity System Implementation Walkthrough
+# Walkthrough: Enhanced AI Booking System
 
-We have successfully implemented the Booking Capacity System in accordance with the revised implementation plan. The booking system now enforces guest-capacity limits date-by-date, supports custom max capacities, expires stale pending bookings, checks capacity inside concurrency-safe database RPC calls, and includes AI guardrails.
+I have successfully implemented all phases of the enhanced booking system as approved in the implementation plan. Here is a summary of the changes and verification results.
 
----
+## Changes Made
 
-## Summary of Changes
+### 1. Verification Backend API Endpoints
+- **[NEW] [start/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/start/route.ts)**: Implements `POST /api/booking/start` to check date capacity, clean up expired sessions, enforce email verification throttle (1 email per 60s), limit sessions per IP (max 10/hour), generate a cryptographically secure 6-digit code, save the session to the database, and send the verification email via Resend.
+- **[NEW] [verify/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/verify/route.ts)**: Implements `POST /api/booking/verify` to look up verification sessions, check expiration/attempts, check code matches, increment attempt count, and mark verified.
+- **[NEW] [complete/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/complete/route.ts)**: Implements `POST /api/booking/complete` to retrieve the verified session, check final capacity, perform atomic insert via Supabase RPC, delete the verification session, and send confirmation emails to both guest and admin.
+- **[NEW] [upload-receipt/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/upload-receipt/route.ts)**: Implements `POST /api/booking/upload-receipt` to receive multipart receipt image uploads and link them to the active booking record in Supabase.
 
-### 1. Database Schema Update
-- **[bookings-capacity.sql](file:///d:/repos/kamp-lambingan/bookings-capacity.sql)**:
-  - Created a script to define the `date_capacities` table for date-specific guest limit overrides.
-  - Enabled Row-Level Security (RLS) on `date_capacities` with public `SELECT` access and admin-only write permissions.
-  - Adjusted the `bookings.status` CHECK constraint to allow the `'expired'` status.
-  - Created a concurrency-safe, atomic SQL function `create_booking_safe` to lock the `bookings` table, validate remaining capacity day-by-day (excluding check-out day), and insert new bookings in a single transaction.
+### 2. Admin Rejection Logic
+- **[MODIFY] [bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts)**: Added support for a `'payment_rejected'` reason parameter in `updateBookingStatus` to cancel bookings and email the customer that their uploaded proof of payment was rejected.
 
-### 2. Backend Server Actions & Logic
-- **[bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts)**:
-  - Added capacity server actions: `getDateCapacities()`, `setDateCapacity(date, maxCapacity)`, and `deleteDateCapacity(date)` (all admin gated).
-  - Implemented `expireStaleBookings(supabase)` to automatically mark pending bookings older than 30 minutes as `expired` before any capacity calculations.
-  - Implemented `getCapacityForDates(checkIn, checkOut)` to fetch custom and default capacities, count current bookings (excluding cancelled, archived, and expired ones), and return detailed daily capacities.
-  - Renamed `getBookedDates()` to `getFullyBookedDates()` to return dates where the remaining capacity has reached zero.
-  - Hardened `createBooking(formData)` to execute the insertion inside the safe, atomic `create_booking_safe` RPC database transaction.
+### 3. AI Assistant Tools and Prompt
+- **[MODIFY] [route.ts](file:///d:/repos/kamp-lambingan/src/app/api/chat/route.ts)**: Replaced the old `createBooking` tool with the three new tools: `startBookingVerification`, `verifyBookingCode`, and `completeBooking`.
+- **[MODIFY] [knowledge-base.ts](file:///d:/repos/kamp-lambingan/src/lib/knowledge-base.ts)**: Updated the AI prompt to guide it through email verification, request codes, wait for verification, confirm details, and output structured GCash payment instructions in JSON format.
 
-### 3. Frontend & Booking Form
-- **[BookForm.tsx](file:///d:/repos/kamp-lambingan/src/components/site/BookForm.tsx)**:
-  - Switched from `getBookedDates()` to `getFullyBookedDates()` to retrieve dates that are fully booked and disable them in the calendar.
-
-### 4. AI Assistant Component
-- **[route.ts](file:///d:/repos/kamp-lambingan/src/app/api/chat/route.ts)**:
-  - Updated the `checkAvailability` tool to return comprehensive capacity info (`available`, `maxGuestsAllowed`, `maximumCapacity`, `bookedGuests`, `remainingCapacity`, `isFullyBooked`, `details`).
-- **[knowledge-base.ts](file:///d:/repos/kamp-lambingan/src/lib/knowledge-base.ts)**:
-  - Configured system prompt instructions instructing the AI assistant to query guest capacity, communicate remaining capacity to guests, present a complete summary before booking, and require explicit confirmation (e.g. "Yes", "Confirm", "Proceed", "Book it") before triggering the booking tool.
-
-### 5. Admin Dashboard UI
-- **[page.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/page.tsx)**:
-  - Updated the bookings tab to parallelly load custom capacities and render the manager component.
-- **[CapacityManager.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/CapacityManager.tsx)**:
-  - Added a responsive dashboard card allowing admins to pick a date, set a capacity limit, list all active custom capacity settings, view current utilization (booked vs remaining spots), and reset entries to defaults.
+### 4. Interactive Chat UI and Admin UI
+- **[MODIFY] [page.tsx](file:///d:/repos/kamp-lambingan/src/app/page.tsx)**: Passed the `content` configuration prop to the `<ChatWidget />` component.
+- **[MODIFY] [ChatWidget.tsx](file:///d:/repos/kamp-lambingan/src/components/site/ChatWidget.tsx)**: Added a parser for JSON payment instructions, rendered a custom Payment card containing GCash QR details dynamically, and added a file upload input allowing customers to upload their receipt directly inside the chat.
+- **[MODIFY] [BookingActions.tsx](file:///d:/repos/kamp-lambingan/src/components/admin/BookingActions.tsx)**: Added a "Reject Payment" button which triggers `updateBookingStatus` with the status `'cancelled'` and the reason `'payment_rejected'`.
 
 ---
 
-## Action Item: Run SQL Migrations
+## Verification Results
 
-> [!IMPORTANT]
-> To activate the capacity table and transaction safety in the database, copy the contents of [bookings-capacity.sql](file:///d:/repos/kamp-lambingan/bookings-capacity.sql) and execute it inside your **Supabase SQL Editor** in the dashboard.
+### Automated Verification
+- Ran Next.js production build (`npm run build`).
+- **Result**: Compilation was successful with no TypeScript or build-time issues.
+```bash
+> next build
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+- Experiments (use with caution):
+  · serverActions
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 24.8s
+  Running TypeScript ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/12) ...
+✓ Generating static pages using 11 workers (12/12) in 522.9ms
+  Finalizing page optimization ...
+```
+
+### Manual Verification Path
+To test this manually on your system:
+1. Start the dev server using `npm run dev`.
+2. Open the homepage at `http://localhost:3000`.
+3. Open the chat widget and request a booking.
+4. Check that:
+   - A verification email is sent to your address.
+   - The widget asks you to enter the 6-digit code.
+   - Code entry is verified and the booking is created.
+   - GCash payment instructions and the QR code are rendered in the chat widget.
+   - You can upload a payment receipt directly within the chat widget.
+5. In the Admin Dashboard:
+   - Locate the new pending booking.
+   - Review the uploaded payment receipt.
+   - Click "Reject Payment" to test the payment rejection email notification.
