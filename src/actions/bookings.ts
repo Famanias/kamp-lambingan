@@ -6,6 +6,12 @@ import { createClient, getServiceClient, requireAdmin } from '@/lib/supabase/ser
 import { collectBookedDates, expandDateRange } from '@/lib/booking-dates';
 import { getContent } from './content';
 import { getSelectedPackage, getNextDayString } from '@/lib/package-helper';
+import {
+  sendBookingReceivedEmail,
+  sendBookingConfirmedEmail,
+  sendBookingRejectedEmail,
+  sendBookingCancelledEmail,
+} from '@/lib/email/booking-notifications';
 import crypto from 'crypto';
 
 export interface BookingInput {
@@ -89,6 +95,29 @@ export async function createBooking(formData: FormData) {
     payment_type: ((formData.get('paymentType') as string) === 'downpayment' ? 'downpayment' : 'full'),
   };
 
+  const verificationSessionId = formData.get('verificationSessionId') as string | null;
+  if (!verificationSessionId) {
+    return { success: false, error: 'Email verification is required before completing your booking.', id: null, reference: null };
+  }
+
+  const { data: verificationSession, error: verificationError } = await supabase
+    .from('booking_verifications')
+    .select('*')
+    .eq('id', verificationSessionId)
+    .maybeSingle();
+
+  if (verificationError || !verificationSession) {
+    return { success: false, error: 'Email verification session not found. Please verify your email again.', id: null, reference: null };
+  }
+
+  if (!verificationSession.verified) {
+    return { success: false, error: 'Email verification has not been completed. Please verify the code sent to your email.', id: null, reference: null };
+  }
+
+  if (verificationSession.booking_session?.guest_email?.toLowerCase().trim() !== input.guest_email.toLowerCase().trim()) {
+    return { success: false, error: 'The verified email does not match the booking email. Please start verification again.', id: null, reference: null };
+  }
+
   if (!input.guest_name || !input.guest_email || !input.guest_phone || !input.package_name) {
     return { success: false, error: 'All guest details and selected package are required.', id: null, reference: null };
   }
@@ -121,7 +150,7 @@ export async function createBooking(formData: FormData) {
     const checkOutDate = new Date(input.check_out + 'T00:00:00');
     const diffTime = checkOutDate.getTime() - checkInDate.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays <= 0) {
       return { success: false, error: 'Check-out must be after check-in.', id: null, reference: null };
     }
@@ -132,8 +161,8 @@ export async function createBooking(formData: FormData) {
       return { success: false, error: `Single-night package requires exactly a 1-night stay.`, id: null, reference: null };
     }
 
-    const priceNum = typeof selectedPkg.price === 'number' 
-      ? selectedPkg.price 
+    const priceNum = typeof selectedPkg.price === 'number'
+      ? selectedPkg.price
       : (parseInt((selectedPkg.price as any).replace(/[^\d]/g, ''), 10) || 0);
     const amountDueNum = input.payment_type === 'full' ? priceNum : Math.ceil(priceNum / 2);
     input.amount_due = amountDueNum > 0 ? '₱' + amountDueNum.toLocaleString('en-PH') : '';
@@ -191,63 +220,24 @@ export async function createBooking(formData: FormData) {
     }
   }
 
-  // Send HTML-escaped emails
-  if (process.env.RESEND_API_KEY) {
-    try {
-      const safeName = escapeHtml(input.guest_name);
-      const safePackage = escapeHtml(input.package_name);
-      const safePhone = escapeHtml(input.guest_phone);
-      const safeNotes = input.notes ? escapeHtml(input.notes) : '';
-      const safeAmountDue = input.amount_due ? escapeHtml(input.amount_due) : '';
-
-      const { Resend } = await import('resend');
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
-        from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
-        to: input.guest_email,
-        subject: 'We received your booking request!',
-        html: `
-          <h2>Hi ${safeName}! 🌿</h2>
-          <p>We received your booking request for <strong>${safePackage}</strong>.</p>
-          <div style="background:#f0fdf4;border:1px solid #bbf7d0;padding:16px;border-radius:8px;margin:16px 0;">
-            <p style="margin:0 0 4px 0;font-size:12px;color:#6b7280;">Your Booking Reference</p>
-            <p style="margin:0;font-size:24px;font-weight:bold;letter-spacing:2px;color:#166534;">${reference}</p>
-          </div>
-          <p>Keep this reference handy — you can use it to check your booking status anytime at <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/my-bookings">${(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')}/my-bookings</a>.</p>
-          <p><strong>Check-in:</strong> ${input.check_in}</p>
-          <p><strong>Check-out:</strong> ${input.check_out}</p>
-          <p><strong>Guests:</strong> ${input.pax}</p>
-          <p><strong>Payment:</strong> ${input.payment_type === 'downpayment' ? `Downpayment (50%)` : 'Full Payment'}${safeAmountDue ? ` — <strong>${safeAmountDue}</strong>` : ''}</p>
-          <p>Our team will <strong>text or call you</strong> on <strong>${safePhone}</strong> within 24 hours to confirm your booking. Please keep your phone on!</p>
-          <p>You can also check your booking status anytime at <a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/my-bookings">${(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')}/my-bookings</a>.</p>
-          <p>Questions? Message us on <a href="https://www.facebook.com/kamplambingan">Facebook</a>.</p>
-          <p>— Kamp Lambingan Team</p>
-        `,
-      });
-
-      if (process.env.ADMIN_EMAIL) {
-        await resend.emails.send({
-          from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
-          to: process.env.ADMIN_EMAIL,
-          subject: `New booking from ${safeName}`,
-          html: `
-            <h2>New Booking Request</h2>
-            <p><strong>Name:</strong> ${safeName}</p>
-            <p><strong>Email:</strong> ${input.guest_email}</p>
-            <p><strong>Phone:</strong> ${safePhone}</p>
-            <p><strong>Package:</strong> ${safePackage}</p>
-            <p><strong>Check-in:</strong> ${input.check_in}</p>
-            <p><strong>Check-out:</strong> ${input.check_out}</p>
-            <p><strong>Guests:</strong> ${input.pax}</p>
-            <p><strong>Payment:</strong> ${input.payment_type === 'downpayment' ? 'Downpayment (50%)' : 'Full Payment'}${safeAmountDue ? ` — ${safeAmountDue}` : ''}</p>
-            ${safeNotes ? `<p><strong>Notes:</strong> ${safeNotes}</p>` : ''}
-            <p><a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/admin/bookings/${bookingId}">View booking →</a></p>
-          `,
-        });
-      }
-    } catch (emailErr) {
-      console.error('[createBooking] email notification failed:', emailErr);
-    }
+  // Send email notifications via centralized booking notification service
+  try {
+    await sendBookingReceivedEmail({
+      guestName: input.guest_name,
+      guestEmail: input.guest_email,
+      guestPhone: input.guest_phone,
+      packageName: input.package_name,
+      checkIn: input.check_in,
+      checkOut: input.check_out,
+      pax: input.pax,
+      paymentType: input.payment_type,
+      amountDue: input.amount_due,
+      reference,
+      bookingId,
+      notes: input.notes ?? null,
+    });
+  } catch (emailErr) {
+    console.error('[createBooking] email notification failed:', emailErr);
   }
 
   return { success: true, error: null, id: bookingId, reference };
@@ -552,77 +542,56 @@ export async function updateBookingStatus(
     return { success: false, error: err.message || 'Unauthorized' };
   }
 
-  const supabase = await createClient();
-  const updateData: any = { 
-    status, 
+  const serviceClient = getServiceClient();
+  const updateData: any = {
+    status,
     updated_at: new Date().toISOString(),
     status_reason: reason || null
   };
-  const { error } = await supabase
+  const { error: updateError } = await serviceClient
     .from('bookings')
     .update(updateData)
     .eq('id', id);
 
+  if (updateError) {
+    console.error('[updateBookingStatus] database update failed:', updateError);
+    return { success: false, error: 'Failed to update booking status.' };
+  }
 
-  if (error) return { success: false, error: 'Failed to update booking status.' };
+  // Send guest notification email through centralized booking email helpers
+  try {
+    const { data: booking, error: fetchError } = await serviceClient
+      .from('bookings')
+      .select('guest_name, guest_email, guest_phone, package_name, check_in, check_out, pax, payment_type, reference, amount_due')
+      .eq('id', id)
+      .single();
 
-  // Send guest notification email
-  if (process.env.RESEND_API_KEY) {
-    try {
-      const { data: booking } = await supabase
-        .from('bookings')
-        .select('guest_name, guest_email, package_name, check_in, check_out')
-        .eq('id', id)
-        .single();
+    if (fetchError) {
+      console.error('[updateBookingStatus] failed to fetch booking details for email:', fetchError);
+    } else if (booking) {
+      const payload = {
+        guestName: booking.guest_name,
+        guestEmail: booking.guest_email,
+        guestPhone: booking.guest_phone ?? '',
+        packageName: booking.package_name,
+        checkIn: booking.check_in,
+        checkOut: booking.check_out,
+        pax: booking.pax,
+        paymentType: booking.payment_type === 'downpayment' ? 'downpayment' : 'full',
+        reference: booking.reference,
+        amountDue: booking.amount_due,
+      } as const;
 
-      if (booking) {
-        const safeName = escapeHtml(booking.guest_name);
-        const safePackage = escapeHtml(booking.package_name);
-
-        const { Resend } = await import('resend');
-        const resend = new Resend(process.env.RESEND_API_KEY);
-
-        if (status === 'confirmed') {
-          await resend.emails.send({
-            from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
-            to: booking.guest_email,
-            subject: '✅ Your booking is confirmed!',
-            html: `
-              <h2>Great news, ${safeName}! 🎉</h2>
-              <p>Your booking for <strong>${safePackage}</strong> has been <strong>confirmed</strong>.</p>
-              <p><strong>Check-in:</strong> ${booking.check_in}</p>
-              <p><strong>Check-out:</strong> ${booking.check_out}</p>
-              <p>We can't wait to welcome you to Kamp Lambingan! See you soon. 🌿</p>
-              <p>Questions? Message us on <a href="https://www.facebook.com/kamplambingan">Facebook</a>.</p>
-            `,
-          });
-        } else if (reason === 'payment_rejected') {
-          await resend.emails.send({
-            from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
-            to: booking.guest_email,
-            subject: 'Your payment was rejected — Booking Cancelled',
-            html: `
-              <h2>Hi ${safeName},</h2>
-              <p>Unfortunately, your booking for <strong>${safePackage}</strong> on ${booking.check_in} has been <strong>cancelled</strong> because the uploaded proof of payment was rejected.</p>
-              <p>If you believe this is a mistake, please make a new booking with a valid receipt, or reach out to us on <a href="https://www.facebook.com/kamplambingan">Facebook</a>.</p>
-            `,
-          });
-        } else {
-          await resend.emails.send({
-            from: process.env.RESEND_FROM_EMAIL || 'Kamp Lambingan <onboarding@resend.dev>',
-            to: booking.guest_email,
-            subject: 'Your booking has been cancelled',
-            html: `
-              <h2>Hi ${safeName},</h2>
-              <p>Unfortunately, your booking for <strong>${safePackage}</strong> on ${booking.check_in} has been <strong>cancelled</strong>.</p>
-              <p>If you have questions, please message us on <a href="https://www.facebook.com/kamplambingan">Facebook</a>.</p>
-            `,
-          });
-        }
+      if (status === 'confirmed') {
+        await sendBookingConfirmedEmail(payload);
+      } else if (reason === 'payment_rejected') {
+        await sendBookingRejectedEmail(payload);
+      } else {
+        await sendBookingCancelledEmail(payload);
       }
-    } catch (emailErr) {
-      console.error('[updateBookingStatus] email notification failed:', emailErr);
     }
+  } catch (emailErr) {
+    console.error('[updateBookingStatus] email notification failed:', emailErr);
   }
 
   revalidatePath('/admin/bookings');

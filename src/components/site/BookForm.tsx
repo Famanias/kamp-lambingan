@@ -23,8 +23,16 @@ export default function BookForm({ content }: BookFormProps) {
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [sendingVerification, setSendingVerification] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [verificationSessionId, setVerificationSessionId] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const [resendAvailableAt, setResendAvailableAt] = useState(0);
+  const [resendCountdown, setResendCountdown] = useState(0);
   // const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null); // re-enable when live
   const [paymentType, setPaymentType] = useState<'full' | 'downpayment'>('full');
   const [bookedDates, setBookedDates] = useState<string[]>([]);
@@ -231,7 +239,7 @@ export default function BookForm({ content }: BookFormProps) {
     }
   };
 
-  const handleStep1 = (e: React.FormEvent) => {
+  const handleStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.phone || !form.packageName || !form.checkIn || !form.checkOut || !form.pax) {
       setError('Please fill in all required fields.');
@@ -269,8 +277,43 @@ export default function BookForm({ content }: BookFormProps) {
       setError('Selected dates are already booked. Please choose different dates.');
       return;
     }
+
     setError(null);
-    setStep(2);
+    setSendingVerification(true);
+    try {
+      const response = await fetch('/api/booking/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guest_name: form.name,
+          guest_email: form.email,
+          guest_phone: form.phone,
+          package_name: form.packageName,
+          check_in: form.checkIn,
+          check_out: form.checkOut,
+          pax: Number(form.pax),
+          payment_type: paymentType,
+          notes: form.notes,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        setError(data.error || 'Failed to send verification code. Please try again.');
+        return;
+      }
+
+      setVerificationSessionId(data.sessionId);
+      setStep(2);
+      setResendMessage('A verification code has been sent to your email.');
+      setResendAvailableAt(Date.now() + 60_000);
+      setResendCountdown(60);
+    } catch (err) {
+      setError('Failed to start email verification. Please try again.');
+      return;
+    } finally {
+      setSendingVerification(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -279,11 +322,11 @@ export default function BookForm({ content }: BookFormProps) {
       setError('Please upload your payment receipt.');
       return;
     }
-    // reCAPTCHA check disabled until live — re-enable below:
-    // if (!recaptchaToken) {
-    //   setError('Please complete the reCAPTCHA verification.');
-    //   return;
-    // }
+    if (!verificationSessionId) {
+      setError('Please verify your email before submitting your booking.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -291,19 +334,16 @@ export default function BookForm({ content }: BookFormProps) {
       const formData = new FormData();
       Object.entries(form).forEach(([k, v]) => formData.append(k, v));
       formData.append('receipt', receiptFile);
-      // formData.append('recaptchaToken', recaptchaToken); // re-enable when live
       formData.append('paymentType', paymentType);
+      formData.append('verificationSessionId', verificationSessionId);
       if (amountDueFormatted) formData.append('amountDue', amountDueFormatted);
 
       const result = await createBooking(formData);
       if (result.error) {
         setError(result.error);
         setLoading(false);
-        // recaptchaRef.current?.reset(); // re-enable when live
-        // setRecaptchaToken(null); // re-enable when live
         return;
       }
-      // Save email so My Bookings page can auto-fill
       localStorage.setItem('kl_guest_email', form.email);
       router.push(`/booking/${result.id}`);
     } catch {
@@ -326,6 +366,23 @@ export default function BookForm({ content }: BookFormProps) {
     }, 5000);
     return () => window.clearTimeout(timer);
   }, [error]);
+
+  useEffect(() => {
+    if (!resendAvailableAt) {
+      setResendCountdown(0);
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      const seconds = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000));
+      setResendCountdown(seconds);
+      if (seconds <= 0) {
+        window.clearInterval(interval);
+      }
+    }, 250);
+
+    return () => window.clearInterval(interval);
+  }, [resendAvailableAt]);
 
   useEffect(() => {
     setBookedDatesPage((prev) => Math.min(prev, Math.max(1, Math.ceil(bookedDates.length / BOOKED_DATES_PAGE_SIZE))));
@@ -354,7 +411,7 @@ export default function BookForm({ content }: BookFormProps) {
     <div className="max-w-xl mx-auto">
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-8">
-        {[1, 2].map((s) => (
+        {[1, 2, 3].map((s) => (
           <div key={s} className="flex items-center gap-2">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
@@ -364,9 +421,9 @@ export default function BookForm({ content }: BookFormProps) {
               {s}
             </div>
             <span className={`text-sm ${step >= s ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
-              {s === 1 ? 'Your Details' : 'Upload Receipt'}
+              {s === 1 ? 'Your Details' : s === 2 ? 'Email Verification' : 'Upload Receipt'}
             </span>
-            {s < 2 && <div className={`w-12 h-0.5 ${step > s ? 'bg-primary' : 'bg-gray-200'}`} />}
+            {s < 3 && <div className={`w-12 h-0.5 ${step > s ? 'bg-primary' : 'bg-gray-200'}`} />}
           </div>
         ))}
       </div>
@@ -629,6 +686,131 @@ export default function BookForm({ content }: BookFormProps) {
       )}
 
       {step === 2 && (
+        <div className="space-y-6">
+          <div className="bg-background-light rounded-xl p-6 border border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-900">Verify your email before payment</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Before you continue to payment and upload your receipt, we need to confirm that this booking is associated with your email address.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <div>
+              <p className="text-sm text-gray-500">A 6-digit verification code was sent to</p>
+              <p className="mt-1 font-semibold text-gray-900">{form.email}</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Verification Code</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                name="verificationCode"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="Enter 6-digit code"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+
+            {resendMessage && (
+              <p className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-lg p-3">{resendMessage}</p>
+            )}
+
+            <div className="grid sm:grid-cols-[1fr_auto] gap-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  setError(null);
+                  setResendMessage(null);
+                  setResendLoading(true);
+                  try {
+                    const response = await fetch('/api/booking/start', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        guest_name: form.name,
+                        guest_email: form.email,
+                        guest_phone: form.phone,
+                        package_name: form.packageName,
+                        check_in: form.checkIn,
+                        check_out: form.checkOut,
+                        pax: Number(form.pax),
+                        payment_type: paymentType,
+                        notes: form.notes,
+                      }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok || data.error) {
+                      setError(data.error || 'Failed to resend verification code.');
+                      return;
+                    }
+                    setVerificationSessionId(data.sessionId);
+                    setResendMessage('Verification code resent successfully.');
+                    setResendAvailableAt(Date.now() + 60_000);
+                    setResendCountdown(60);
+                  } catch (err) {
+                    setError('Unable to resend verification code. Please try again.');
+                  } finally {
+                    setResendLoading(false);
+                  }
+                }}
+                disabled={resendCountdown > 0 || resendLoading}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-primary bg-white px-4 py-3 text-sm font-semibold text-primary shadow-sm transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {resendLoading ? 'Resending...' : resendCountdown > 0 ? `Resend in ${resendCountdown}s` : 'Resend Code'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setError(null);
+                  setVerifyLoading(true);
+                  try {
+                    const response = await fetch('/api/booking/verify', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        sessionId: verificationSessionId,
+                        code: verificationCode,
+                      }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok || !data.success) {
+                      setError(data.error || 'Verification failed.');
+                      return;
+                    }
+                    setStep(3);
+                    setResendMessage('Email verified successfully. You can now upload your receipt.');
+                  } catch (err) {
+                    setError('An error occurred during verification. Please try again.');
+                  } finally {
+                    setVerifyLoading(false);
+                  }
+                }}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {verifyLoading ? 'Verifying...' : 'Verify Code'}
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-sm font-semibold text-gray-700 hover:text-primary"
+              >
+                &larr; Back to booking details
+              </button>
+              <p className="text-sm text-gray-500">
+                {verificationSessionId ? 'If you still do not receive the email, check your spam folder or resend the code.' : 'Press Continue to send a verification code.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Summary */}
           <div className="bg-background-light rounded-lg p-4 text-sm space-y-1.5">
@@ -697,16 +879,6 @@ export default function BookForm({ content }: BookFormProps) {
             <p className="text-gray-500 text-xs">Once we verify your payment, we&apos;ll <strong>text or call you</strong> to confirm your booking (usually within 24 hours).</p>
           </div>
 
-          {/* reCAPTCHA — re-enable when live */}
-          {/* <div className="flex justify-center">
-            <ReCAPTCHA
-              ref={recaptchaRef}
-              sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!}
-              onChange={(token) => setRecaptchaToken(token)}
-              onExpired={() => setRecaptchaToken(null)}
-            />
-          </div> */}
-
           {/* File upload */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Payment Receipt *</label>
@@ -741,7 +913,7 @@ export default function BookForm({ content }: BookFormProps) {
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => setStep(1)}
+              onClick={() => setStep(2)}
               className="flex-1 border border-gray-300 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
             >
               Back

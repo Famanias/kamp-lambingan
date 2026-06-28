@@ -1,8 +1,8 @@
-# Implementation Plan: Simplified & Metadata-Driven Booking Form
+# Implementation Plan: Automated Booking Status Email Notifications
 
-Simplify the booking experience while preserving important reservation information. Instead of hiding the guest count, require the user to enter their expected number of guests and validate it against the selected package's maximum capacity. For fixed-duration packages, automatically calculate the check-out date while displaying it as a read-only field so users clearly understand their reservation period.
+Implement a centralized email notification system that automatically informs guests whenever the status of their reservation changes. Instead of requiring guests to repeatedly visit the website and check their booking using the reference number, the system will proactively notify them through email at each important stage of the booking lifecycle.
 
-These improvements will be applied consistently to both the **Chat Widget Booking Wizard** and the **Standalone Booking Page**.
+The notification system will use **Resend** and integrate directly with the existing booking workflow and Admin Dashboard.
 
 ---
 
@@ -10,238 +10,348 @@ These improvements will be applied consistently to both the **Chat Widget Bookin
 
 > [!IMPORTANT]
 >
-> * The **Number of Guests** field will remain in both booking forms and become **required**.
+> * **Chat Booking:** Email verification via Resend has already been implemented for the AI chatbot. Every booking created through the chat originates from a verified email address, so no additional verification is required during the chat booking flow.
 >
-> * The maximum number of guests will be determined by the selected package.
+> * **Manual Booking (`/book`):** The standalone booking page will now adopt the same verification model. Users must verify their email address before they can proceed to the payment step and upload their payment receipt.
 >
-> * The UI will display a helper message such as:
+> * This creates a consistent rule across the application: **every reservation is associated with a verified email address.**
 >
->   ```
->   Maximum guests allowed: 20
->   ```
+> * This implementation introduces a centralized **Booking Notification Service** responsible for sending all booking-related emails.
 >
->   and prevent users from entering a value greater than the package capacity.
+> * Notification sending should occur **after** the booking transaction succeeds.
 >
-> * The package configuration will define whether a package supports multiple-day stays using metadata (e.g. `allowsMultiDay`) instead of checking the package name.
->
-> * For single-night packages, the **Check-out Date** will be automatically calculated as **Check-in + 1 day** and displayed as a **read-only** field instead of a user-editable input.
+> * Email delivery failures must never prevent booking updates from succeeding. Failures should only be logged.
+
+---
+
+# Manual Booking Flow Update
+
+## Previous Flow
+
+```text
+1. Your Details
+
+↓
+
+2. Upload Receipt
+
+↓
+
+Booking Created
+```
+
+## New Flow
+
+```text
+1. Your Details
+
+↓
+
+Continue to Payment
+
+↓
+
+Email Verification Notice
+
+↓
+
+Verification Code Input
+
+↓
+
+Email Verified
+
+↓
+
+2. Upload Receipt
+
+↓
+
+Booking Created
+```
+
+The payment QR code and receipt upload interface should remain inaccessible until the email verification succeeds.
 
 ---
 
 # Proposed Changes
 
-## 1. Package Metadata
-
-### [MODIFY] Package Data Structure
-
-Extend each package definition with structured metadata.
-
-Example:
-
-```ts
-{
-  name: "Family Package",
-  price: 8500,
-  capacity: 20,
-  allowsMultiDay: false
-}
-```
-
-```ts
-{
-  name: "Exclusive Overnight",
-  price: 18000,
-  capacity: 40,
-  allowsMultiDay: true
-}
-```
-
-The booking UI should rely on these properties instead of checking package names.
-
-Benefits:
-
-* Easier future package renaming.
-* Cleaner business logic.
-* Supports future package types without additional conditions.
-
----
-
-## 2. Shared Package Helper
-
-### [NEW] Shared Utility
-
-Create a reusable helper that returns the complete package configuration.
-
-Example:
-
-```ts
-getSelectedPackage(packageName, packages)
-```
-
-Returns:
-
-```ts
-{
-    name,
-    price,
-    capacity,
-    allowsMultiDay,
-    ...
-}
-```
-
-All booking components should use this helper instead of separate lookup functions.
-
----
-
-## 3. Chat Widget Booking Wizard
-
-### [MODIFY] `ChatWidget.tsx`
-
-### Booking Form
-
-Replace package-specific helper functions with the shared package helper.
-
-When a package is selected:
-
-* Retrieve the package metadata.
-* Store the selected package object for validation.
-* Update helper text and validation dynamically.
-
-### Number of Guests
-
-Keep the field visible.
-
-Make it **required**.
-
-Validation:
-
-* Minimum: 1
-* Maximum: Selected package capacity
-
-Display helper text beneath the field.
-
-Example:
-
-```
-Maximum guests allowed: 20
-```
-
-Prevent submission if the entered value exceeds the package capacity.
-
-### Check-out Date
-
-If
-
-```text
-package.allowsMultiDay === false
-```
-
-Automatically calculate:
-
-```
-checkOut = checkIn + 1 day
-```
-
-Display the calculated value as a **read-only** date field labeled:
-
-```
-Check-out Date
-
-July 16, 2026
-
-Automatically calculated for this package.
-```
-
-If
-
-```text
-package.allowsMultiDay === true
-```
-
-display the normal editable check-out date input.
-
----
-
-## 4. Standalone Booking Form
+## 1. Manual Booking Email Verification
 
 ### [MODIFY] `BookForm.tsx`
 
-Mirror the same behavior implemented in the chat booking wizard.
+Extend the standalone booking wizard by introducing an email verification step between the booking details and payment.
 
-### Package Selection
+Current steps:
 
-Retrieve the package metadata using the shared helper.
+```text
+Step 1
+Your Details
 
-### Number of Guests
+↓
 
-* Required.
-* Maximum equals package capacity.
-* Display helper text indicating the maximum allowed guests.
-* Prevent invalid values before submission.
+Step 2
+Upload Receipt
+```
 
-### Check-out Date
+New steps:
 
-For packages that do not allow multiple-day stays:
+```text
+Step 1
+Your Details
 
-* Automatically calculate check-out.
-* Display as a read-only field.
+↓
 
-For packages allowing multiple-day stays:
+Email Verification
 
-* Display the editable check-out date picker.
+↓
 
-Maintain identical validation logic between both booking interfaces.
-
----
-
-## 5. Validation
-
-### Client-side
-
-Validate:
-
-* Required guest count.
-* Guest count must not exceed package capacity.
-* Check-in date cannot be in the past.
-* For multi-day packages:
-
-  * Check-out must be after check-in.
-* For single-night packages:
-
-  * Automatically calculate check-out.
-
-Display clear validation messages before submission.
+Step 2
+Upload Receipt
+```
 
 ---
 
-### Backend
+### Email Verification Notice
 
-Continue validating independently of the frontend.
+After the user completes **Your Details** and clicks:
 
-Never trust client-provided values.
+```text
+Continue to Payment
+```
 
-Verify:
+display an intermediate verification screen instead of immediately showing the payment section.
 
-* Guest count does not exceed package capacity.
-* Check-out date matches package rules.
-* Availability remains valid.
-* Capacity calculations remain correct.
+Example message:
+
+> Before continuing to payment, please verify your email address.
+>
+> This helps us ensure your booking confirmation and future booking updates are delivered successfully.
+
+Buttons:
+
+* Send Verification Code
+* Back
 
 ---
 
-## 6. Knowledge Base
+### Verification Code Widget
 
-### [MODIFY] `knowledge-base.ts`
+After sending the email:
 
-Update booking guidance to reflect the simplified booking flow.
+Display:
 
-Mention:
+* 6-digit verification code input
+* Verify button
+* Resend Code button
+* Countdown timer before resend
+* Loading state
+* Error handling
+* Success state
 
-* Users provide their expected number of guests.
-* The system automatically validates guest limits based on the selected package.
-* Single-night packages automatically calculate the check-out date.
-* Only packages configured for multiple-day stays allow manual check-out selection.
+Upon successful verification:
+
+* Mark the booking session as verified.
+* Automatically continue to the payment step.
+* Display the QR code and receipt upload form.
+
+The user should not need to press "Continue" again.
+
+---
+
+## 2. Backend APIs
+
+Reuse the existing Resend verification infrastructure whenever possible.
+
+If compatible, the standalone booking page should call the same verification endpoints used by the chatbot rather than maintaining duplicate implementations.
+
+The verification endpoints should support:
+
+* Sending verification codes.
+* Validating verification codes.
+* Expiration handling.
+* Maximum attempts.
+* Rate limiting.
+
+---
+
+## 3. Booking Notification Service
+
+### [NEW] `src/lib/email/booking-notifications.ts`
+
+Create a centralized notification service responsible for all booking-related emails.
+
+Suggested API:
+
+```ts
+sendBookingReceived()
+
+sendPaymentReceived()
+
+sendBookingConfirmed()
+
+sendPaymentRejected()
+
+sendBookingCancelled()
+```
+
+All booking routes and server actions should use this service.
+
+---
+
+## 4. Booking Created Notification
+
+### [MODIFY] `complete/route.ts`
+
+After a booking is successfully created:
+
+Automatically send:
+
+### Booking Received
+
+Contents:
+
+* Guest name
+* Booking reference
+* Package
+* Check-in
+* Check-out
+* Number of guests
+* Amount due
+* Payment option
+* Reminder that the booking is pending review
+
+Subject:
+
+```
+We've received your booking request!
+```
+
+---
+
+## 5. Receipt Upload Notification
+
+### [MODIFY] `upload-receipt/route.ts`
+
+After a receipt uploads successfully:
+
+Automatically send:
+
+### Payment Received
+
+Contents:
+
+* Booking reference
+* Confirmation that payment proof has been received.
+* Notice that staff will review it shortly.
+
+Subject:
+
+```
+We've received your payment receipt
+```
+
+---
+
+## 6. Booking Confirmation Notification
+
+### [MODIFY] `bookings.ts`
+
+Whenever an administrator confirms a booking:
+
+Automatically send:
+
+### Booking Confirmed
+
+Include:
+
+* Booking reference
+* Package
+* Check-in
+* Check-out
+* Guest count
+* Arrival reminders
+* Resort contact information
+
+Subject:
+
+```
+Your booking has been confirmed!
+```
+
+---
+
+## 7. Payment Rejected Notification
+
+### [MODIFY] `bookings.ts`
+
+Whenever an administrator rejects a payment:
+
+Automatically send:
+
+### Payment Rejected
+
+Include:
+
+* Booking reference
+* Rejection reason (if provided)
+* Instructions for uploading a new payment receipt
+
+Subject:
+
+```
+Your payment requires attention
+```
+
+---
+
+## 8. Booking Cancelled Notification
+
+### [MODIFY] `bookings.ts`
+
+Whenever a booking is cancelled:
+
+Automatically send:
+
+### Booking Cancelled
+
+Include:
+
+* Booking reference
+* Cancellation reason (if provided)
+* Contact information for assistance
+
+Subject:
+
+```
+Your booking has been cancelled
+```
+
+---
+
+## 9. Email Logging
+
+Log every notification attempt.
+
+Successful example:
+
+```
+Booking: KL-240001
+Email: Booking Confirmed
+Recipient: guest@example.com
+Status: Delivered
+```
+
+Failure example:
+
+```
+Booking: KL-240001
+Booking updated successfully
+Email delivery failed
+Reason: SMTP timeout
+```
+
+Booking operations must never fail because an email notification could not be delivered.
 
 ---
 
@@ -255,54 +365,52 @@ Run:
 npm run build
 ```
 
-Verify successful compilation with no TypeScript or runtime errors.
+Verify successful compilation.
 
 ---
 
-## Manual Testing
+## Manual
 
-### Chat Booking Wizard
+### Chat Booking
 
-* Verify the guest count field is visible and required.
-* Select different packages and confirm the helper text updates with the correct maximum capacity.
-* Attempt to enter more guests than allowed and verify validation prevents submission.
-* Select a single-night package and verify:
+* Verify that chat bookings continue using the existing email verification flow.
+* Confirm no additional verification occurs during booking.
 
-  * Check-out is automatically calculated.
-  * The read-only check-out field is displayed.
-* Select a multi-day package and verify:
+### Manual Booking
 
-  * Editable check-out input appears.
-  * Validation requires a valid date range.
+* Complete Step 1.
+* Click **Continue to Payment**.
+* Verify the email verification notice appears.
+* Receive the verification email.
+* Enter incorrect and expired codes to verify validation.
+* Enter the correct code and confirm the payment section becomes available.
+* Upload a receipt and complete the booking.
 
----
+### Booking Notifications
 
-### Standalone Booking Page
+Verify that emails are automatically sent for:
 
-Repeat the same validation scenarios and confirm behavior matches the chat booking wizard exactly.
+* Booking Received
+* Payment Received
+* Booking Confirmed
+* Payment Rejected
+* Booking Cancelled
+
+### Failure Handling
+
+Simulate an email delivery failure.
+
+Verify:
+
+* Booking operations still succeed.
+* The email failure is logged.
+* Administrators receive no blocking errors.
 
 ---
 
 # Expected Benefits
 
-## Improved User Experience
-
-* Fewer unnecessary inputs.
-* Clearer booking duration.
-* Immediate validation feedback.
-* Better understanding of package capacity.
-
-## Improved Data Quality
-
-* Records the actual expected number of guests instead of assuming maximum occupancy.
-* Produces more accurate booking statistics and operational reports.
-
-## Better Maintainability
-
-* Package behavior is driven by structured metadata rather than package names.
-* A shared package helper eliminates duplicate logic.
-* Booking rules remain consistent across all booking interfaces.
-
-## Future Scalability
-
-New packages can be introduced by updating package metadata without changing booking logic, making the system easier to extend and maintain over time.
+* Every booking now originates from a verified email address, regardless of whether it was created through the AI chatbot or the standalone booking page.
+* Guests receive automatic updates throughout the reservation lifecycle without manually checking their booking status.
+* Administrators no longer need to send manual status emails.
+* The centralized notification service provides a reusable foundation for future features such as booking reminders, post-stay surveys, and promotional campaigns.
