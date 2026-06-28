@@ -1,63 +1,86 @@
-# Walkthrough: Enhanced AI Booking System
+# Walkthrough: Metadata-Driven Package System
 
-I have successfully implemented all phases of the enhanced booking system as approved in the implementation plan. Here is a summary of the changes and verification results.
+I have successfully converted the booking and package systems of Kamp Lambingan to be fully **metadata-driven**. The behavior of guest counts and check-out selections is now controlled entirely by package configurations set in the Admin Panel rather than hardcoded rules or package names.
 
-## Changes Made
+---
 
-### 1. Verification Backend API Endpoints
-- **[NEW] [start/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/start/route.ts)**: Implements `POST /api/booking/start` to check date capacity, clean up expired sessions, enforce email verification throttle (1 email per 60s), limit sessions per IP (max 10/hour), generate a cryptographically secure 6-digit code, save the session to the database, and send the verification email via Resend.
-- **[NEW] [verify/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/verify/route.ts)**: Implements `POST /api/booking/verify` to look up verification sessions, check expiration/attempts, check code matches, increment attempt count, and mark verified.
-- **[NEW] [complete/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/complete/route.ts)**: Implements `POST /api/booking/complete` to retrieve the verified session, check final capacity, perform atomic insert via Supabase RPC, delete the verification session, and send confirmation emails to both guest and admin.
-- **[NEW] [upload-receipt/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/upload-receipt/route.ts)**: Implements `POST /api/booking/upload-receipt` to receive multipart receipt image uploads and link them to the active booking record in Supabase.
+## What Has Been Built
 
-### 2. Admin Rejection Logic
-- **[MODIFY] [bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts)**: Added support for a `'payment_rejected'` reason parameter in `updateBookingStatus` to cancel bookings and email the customer that their uploaded proof of payment was rejected.
+### 1. Extended Package Model & Defaults
+- **Types Update**: Extended the `Package` interface in [types.ts](file:///d:/repos/kamp-lambingan/src/lib/types.ts) to require `price: number`, `description: string`, `capacity: number` (Maximum Guests), and `maxStayDays: number` (Maximum Stay (Days)).
+- **Default Package Setup**: Configured standard options in [defaults.ts](file:///d:/repos/kamp-lambingan/src/lib/defaults.ts) to use these new fields explicitly (Weekday and Weekend packages are set to `maxStayDays: 1`, Group Retreat set to `maxStayDays: 3`).
 
-### 3. AI Assistant Tools and Prompt
-- **[MODIFY] [route.ts](file:///d:/repos/kamp-lambingan/src/app/api/chat/route.ts)**: Replaced the old `createBooking` tool with the three new tools: `startBookingVerification`, `verifyBookingCode`, and `completeBooking`.
-- **[MODIFY] [knowledge-base.ts](file:///d:/repos/kamp-lambingan/src/lib/knowledge-base.ts)**: Updated the AI prompt to guide it through email verification, request codes, wait for verification, confirm details, and output structured GCash payment instructions in JSON format.
+### 2. Auto-Migration & Normalization
+- **Legacy Fallbacks**: Updated `getContent()` in [content.ts](file:///d:/repos/kamp-lambingan/src/actions/content.ts) to intercept legay package data loaded from the DB, clean up price string representations into numbers, and assign sensible defaults for capacity and stay duration. This keeps old database entries backwards-compatible.
+- **Shared Matching Utility**: Modified `getSelectedPackage()` in [package-helper.ts](file:///d:/repos/kamp-lambingan/src/lib/package-helper.ts) to fetch stay limits and guest capacities directly from the newly created metadata properties.
 
-### 4. Interactive Chat UI and Admin UI
-- **[MODIFY] [page.tsx](file:///d:/repos/kamp-lambingan/src/app/page.tsx)**: Passed the `content` configuration prop to the `<ChatWidget />` component.
-- **[MODIFY] [ChatWidget.tsx](file:///d:/repos/kamp-lambingan/src/components/site/ChatWidget.tsx)**: Added a parser for JSON payment instructions, rendered a custom Payment card containing GCash QR details dynamically, and added a file upload input allowing customers to upload their receipt directly inside the chat.
-- **[MODIFY] [BookingActions.tsx](file:///d:/repos/kamp-lambingan/src/components/admin/BookingActions.tsx)**: Added a "Reject Payment" button which triggers `updateBookingStatus` with the status `'cancelled'` and the reason `'payment_rejected'`.
+### 3. Admin Panel UI Updates
+- **Inputs added**: Added input controls to the Packages editor under the **Admin → Content** tab in [ContentEditor.tsx](file:///d:/repos/kamp-lambingan/src/components/admin/ContentEditor.tsx):
+  - **Maximum Guests**: Numeric required input, minimum value `1`.
+  - **Maximum Stay (Days)**: Numeric required input, minimum value `1`.
+  - **Price (₱)**: Converted to a numeric required input.
+  - **Description**: Marked as a required textarea.
+- **Package Addition**: Configured the "Add Package" action to default new packages to `maxStayDays: 1` and `capacity: 2`.
+
+### 4. Parity Booking Form Enhancements
+- **Dynamic Check-out Logic**: Updated the Chat Widget Booking Wizard [ChatWidget.tsx](file:///d:/repos/kamp-lambingan/src/components/site/ChatWidget.tsx) and the Standalone Page Form [BookForm.tsx](file:///d:/repos/kamp-lambingan/src/components/site/BookForm.tsx):
+  - **`maxStayDays === 1`**: Check-out input is replaced by a read-only date view automatically locked to `Check-in + 1 day`. Displays helper message: `"This package includes a 1-day stay. The check-out date is calculated automatically."`
+  - **`maxStayDays > 1`**: Check-out input is editable. Displays helper message: `"Maximum stay: X days"`. Prevents submission if the selected range exceeds the maximum allowed stay duration.
+- **Dynamic Pax Clamping**: Enforces guest limits dynamically up to `package.capacity`, preventing form submission if exceeded. Displays: `"Maximum guests allowed: X"` helper labels.
+
+### 5. Multi-Layered Backend API Securing
+- Enforced identical checks on the backend (capacity checking, stay duration matching stay limits) in:
+  - `createBooking` server action inside [bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts).
+  - API start session endpoint [route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/start/route.ts).
+  - API complete checkout endpoint [route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/complete/route.ts).
+
+### 6. AI Agent Synchronization
+- Updated AI instruction templates in [knowledge-base.ts](file:///d:/repos/kamp-lambingan/src/lib/knowledge-base.ts) so the bot dynamically understands configuration limits and ceases explaining name-based checks.
 
 ---
 
 ## Verification Results
 
 ### Automated Verification
-- Ran Next.js production build (`npm run build`).
-- **Result**: Compilation was successful with no TypeScript or build-time issues.
-```bash
-> next build
-
+Next.js production build (`npm run build`) runs and compiles successfully with zero TypeScript or path errors:
+```text
 ▲ Next.js 16.1.6 (Turbopack)
 - Environments: .env
 - Experiments (use with caution):
   · serverActions
 
   Creating an optimized production build ...
-✓ Compiled successfully in 24.8s
+✓ Compiled successfully in 5.7s
   Running TypeScript ...
   Collecting page data using 11 workers ...
-  Generating static pages using 11 workers (0/12) ...
-✓ Generating static pages using 11 workers (12/12) in 522.9ms
+  Generating static pages using 11 workers (13/13) in 583.6ms
   Finalizing page optimization ...
 ```
+All route endpoints and client components are verified to compile.
 
-### Manual Verification Path
-To test this manually on your system:
-1. Start the dev server using `npm run dev`.
-2. Open the homepage at `http://localhost:3000`.
-3. Open the chat widget and request a booking.
-4. Check that:
-   - A verification email is sent to your address.
-   - The widget asks you to enter the 6-digit code.
-   - Code entry is verified and the booking is created.
-   - GCash payment instructions and the QR code are rendered in the chat widget.
-   - You can upload a payment receipt directly within the chat widget.
-5. In the Admin Dashboard:
-   - Locate the new pending booking.
-   - Review the uploaded payment receipt.
-   - Click "Reject Payment" to test the payment rejection email notification.
+---
+
+## Rejection Status Tracking & Display (New Update)
+
+I have implemented tracking of the payment rejection reason in the database to display a detailed **`rejected`** status and custom reason message to guests and admins instead of generic `cancelled` statuses.
+
+### Changes Made
+
+1. **Database Schema updates**:
+   - Added the `status_reason` column to the schema definitions in [bookings-table.sql](file:///d:/repos/kamp-lambingan/bookings-table.sql) and [bookings-capacity.sql](file:///d:/repos/kamp-lambingan/bookings-capacity.sql):
+     `ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS status_reason text;`
+2. **TypeScript & Model Integration**:
+   - Added `status_reason: string | null` to the `Booking` interface in [types.ts](file:///d:/repos/kamp-lambingan/src/lib/types.ts).
+   - Added `status_reason?: string | null` to the `BookingSummary` type in [MyBookingsClient.tsx](file:///d:/repos/kamp-lambingan/src/app/my-bookings/MyBookingsClient.tsx).
+3. **Server Actions Logic**:
+   - Modified `updateBookingStatus` inside [bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts) to write the `status_reason: reason` value to the database when updating status.
+   - Updated `getBookingByReference` to explicitly retrieve the `status_reason` column when guests look up their reference code.
+4. **Guest Lookup Pages**:
+   - Modified [MyBookingsClient.tsx](file:///d:/repos/kamp-lambingan/src/app/my-bookings/MyBookingsClient.tsx) to check if a booking is cancelled with a `payment_rejected` reason. It dynamically renders the status as **`rejected`** with a red badge, displaying the rejection alert message:
+     `Booking rejected due to inauthentic payment image given.`
+   - Updated [page.tsx](file:///d:/repos/kamp-lambingan/src/app/booking/[id]/page.tsx) to dynamically adjust headings, icons, status badges, and instructions for all booking states (`pending`, `confirmed`, `cancelled`, `rejected`, `expired`). Under the rejected state, it displays the message:
+     `booking rejected due to inauthentic payment image given. If you believe this is a mistake, please make a new booking with a valid receipt, or reach out to us.`
+5. **Admin Dashboard Views**:
+   - Updated [BookingsTable.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/BookingsTable.tsx) to map and show `rejected` in red for rejected bookings in both the table rows and the details dialog popup.
+   - Updated [page.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/[id]/page.tsx) to display the `rejected` status in the details card view.
+

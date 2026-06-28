@@ -129,7 +129,7 @@ export default function Packages({ content }: { content: SiteContent }) {
                     className="font-heading italic text-white mb-1"
                     style={{ fontSize: '2.5rem', lineHeight: 1, letterSpacing: '-0.02em' }}
                   >
-                    {pkg.price}
+                    {typeof pkg.price === 'number' ? '₱' + pkg.price.toLocaleString('en-PH') : pkg.price}
                   </div>
                   {pkg.description && (
                     <p className="font-body font-light text-xs text-white/70 mb-6 leading-relaxed">{pkg.description}</p>
@@ -168,7 +168,7 @@ export default function Packages({ content }: { content: SiteContent }) {
                   className="font-heading italic mb-1"
                   style={{ fontSize: '2.25rem', lineHeight: 1, letterSpacing: '-0.02em', color: '#152033' }}
                 >
-                  {pkg.price}
+                  {typeof pkg.price === 'number' ? '₱' + pkg.price.toLocaleString('en-PH') : pkg.price}
                 </div>
                 {pkg.description && (
                   <p className="font-body font-light text-xs mb-6 leading-relaxed" style={{ color: 'rgba(21,32,51,0.6)' }}>{pkg.description}</p>

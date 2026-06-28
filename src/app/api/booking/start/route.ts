@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getServiceClient } from '@/lib/supabase/server';
 import { getCapacityForDates } from '@/actions/bookings';
+import { getContent } from '@/actions/content';
+import { getSelectedPackage } from '@/lib/package-helper';
+import { sendVerificationCodeEmail } from '@/lib/email/booking-notifications';
 
 // In-memory rate limiting map for IP rate limit
 const ipLimits = new Map<string, { count: number; resetAt: number }>();
@@ -80,6 +83,43 @@ export async function POST(req: Request) {
       );
     }
 
+    // Validate package constraints on the server
+    const siteContent = await getContent();
+    const selectedPkg = getSelectedPackage(package_name, siteContent.packages);
+    if (!selectedPkg) {
+      return NextResponse.json({ error: 'Selected package is invalid.' }, { status: 400 });
+    }
+    
+    // Validate guest capacity
+    if (pax > selectedPkg.capacity) {
+      return NextResponse.json(
+        { error: `Guest count (${pax}) exceeds the selected package capacity of ${selectedPkg.capacity}.` },
+        { status: 400 }
+      );
+    }
+    if (pax < 1) {
+      return NextResponse.json({ error: 'Guest count must be at least 1.' }, { status: 400 });
+    }
+
+    // Validate stay duration
+    const checkInDate = new Date(check_in + 'T00:00:00');
+    const checkOutDate = new Date(check_out + 'T00:00:00');
+    const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays <= 0) {
+      return NextResponse.json({ error: 'Check-out must be after check-in.' }, { status: 400 });
+    }
+    if (diffDays > selectedPkg.maxStayDays) {
+      return NextResponse.json(
+        { error: `Stay duration exceeds the maximum stay limit of ${selectedPkg.maxStayDays} days for this package.` },
+        { status: 400 }
+      );
+    }
+    if (selectedPkg.maxStayDays === 1 && diffDays !== 1) {
+      return NextResponse.json({ error: 'Single-night package requires exactly a 1-night stay.' }, { status: 400 });
+    }
+
     // 3. Check capacity
     const capacityDetails = await getCapacityForDates(check_in, check_out);
     if (capacityDetails.length === 0) {
@@ -131,39 +171,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // 6. Send verification email using Resend
-    if (process.env.RESEND_API_KEY) {
-      try {
-        const { Resend } = await import('resend');
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        const fromEmail = process.env.BOOKING_EMAIL || 'noreply@kamplambingan.site';
-
-        await resend.emails.send({
-          from: `Kamp Lambingan <${fromEmail}>`,
-          to: emailStr,
-          subject: 'Verify Your Booking Request',
-          html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
-              <h2 style="color: #047857; margin-top: 0;">Hello! 🌿</h2>
-              <p>Thank you for choosing Kamp Lambingan.</p>
-              <p>Your booking verification code is:</p>
-              <div style="background-color: #f3f4f6; border: 1px dashed #d1d5db; padding: 16px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 4px; text-align: center; color: #111827; margin: 20px 0;">
-                ${verificationCode}
-              </div>
-              <p style="color: #ef4444; font-weight: 500;">This code will expire in 10 minutes.</p>
-              <p style="color: #6b7280; font-size: 14px; margin-top: 24px;">If you did not request this booking, you may safely ignore this email.</p>
-              <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-              <p style="margin-bottom: 0;">Thank you,<br /><strong>Kamp Lambingan</strong></p>
-            </div>
-          `,
-        });
-      } catch (emailErr: any) {
-        console.error('[API booking/start] Resend email failed:', emailErr);
-        // We do not fail the request if email sending fails during local debugging/setup, but in prod we want to know
-      }
-    } else {
-      console.warn('[API booking/start] RESEND_API_KEY not configured. Verification code is:', verificationCode);
-    }
+    // 6. Send verification email using centralized notification service
+    await sendVerificationCodeEmail(emailStr, verificationCode);
 
     return NextResponse.json({ sessionId: newSession.id });
   } catch (err: any) {

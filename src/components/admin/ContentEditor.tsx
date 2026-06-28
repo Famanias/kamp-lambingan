@@ -302,7 +302,9 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                       )}
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold text-gray-700">{p.price || '—'}</span>
+                      <span className="text-sm font-bold text-gray-700">
+                        {typeof p.price === 'number' ? '₱' + p.price.toLocaleString('en-PH') : p.price || '—'}
+                      </span>
                       <button
                         onClick={() => updateField('packages', content.packages.filter((_, idx) => idx !== i))}
                         className="text-red-400 hover:text-red-600 transition-colors"
@@ -317,12 +319,54 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                   <div className="p-4 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className={labelClass}>Package Name</label>
-                        <input className={inputClass} value={p.name} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, name: e.target.value } : item))} />
+                        <label className={labelClass}>Package Name *</label>
+                        <input className={inputClass} required value={p.name} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, name: e.target.value } : item))} />
                       </div>
                       <div>
-                        <label className={labelClass}>Price</label>
-                        <input className={inputClass} value={p.price} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, price: e.target.value } : item))} />
+                        <label className={labelClass}>Price (₱) *</label>
+                        <input
+                          type="number"
+                          required
+                          min={0}
+                          className={inputClass}
+                          value={typeof p.price === 'number' ? p.price : (parseInt((p.price as any).replace(/[^\d]/g, ''), 10) || 0)}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, price: isNaN(val) ? 0 : val } : item));
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className={labelClass}>Maximum Guests *</label>
+                        <input
+                          type="number"
+                          required
+                          min={1}
+                          step={1}
+                          className={inputClass}
+                          value={p.capacity ?? 2}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, capacity: isNaN(val) ? 2 : val } : item));
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Maximum Stay (Days) *</label>
+                        <input
+                          type="number"
+                          required
+                          min={1}
+                          step={1}
+                          className={inputClass}
+                          value={p.maxStayDays ?? 1}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value, 10);
+                            updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, maxStayDays: isNaN(val) ? 1 : val } : item));
+                          }}
+                        />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
@@ -336,8 +380,8 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                       </div>
                     </div>
                     <div>
-                      <label className={labelClass}>Description</label>
-                      <textarea className={inputClass} rows={2} value={p.description} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, description: e.target.value } : item))} />
+                      <label className={labelClass}>Description *</label>
+                      <textarea className={inputClass} required rows={2} value={p.description} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, description: e.target.value } : item))} />
                     </div>
                     <div>
                       <label className={labelClass}>Inclusions (one per line)</label>
@@ -822,7 +866,7 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                 onClick={() => {
                   if (activeSection === 'features') updateField('features', [...content.features, { icon: 'star', title: 'New Feature', description: '' }]);
                   if (activeSection === 'activities') updateField('activities', [...content.activities, { icon: 'hiking', title: 'New Activity', description: '' }]);
-                  if (activeSection === 'packages') updateField('packages', [...content.packages, { name: 'New Package', price: '₱0', description: '', inclusions: [], featured: false }]);
+                  if (activeSection === 'packages') updateField('packages', [...content.packages, { name: 'New Package', price: 0, description: '', inclusions: [], featured: false, capacity: 2, maxStayDays: 1 }]);
                   if (activeSection === 'reviews') updateField('reviews', [...content.reviews, { name: 'New Reviewer', text: '', tags: [], date: '' }]);
                   if (activeSection === 'villas') updateField('villas', [...(content.villas ?? []), { name: 'New Villa', location: '', images: [], capacity: 2, activities: [] }]);
                   if (activeSection === 'faq') updateField('faqs', [...content.faqs, { question: 'New Question?', answer: '' }]);

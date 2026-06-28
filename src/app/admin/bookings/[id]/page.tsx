@@ -15,6 +15,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800',
   confirmed: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800',
+  rejected: 'bg-red-100 text-red-800',
 };
 
 export default async function AdminBookingDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -30,9 +31,14 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
           <span className="material-icons">arrow_back</span>
         </Link>
         <h2 className="text-xl font-bold text-gray-900">Booking Detail</h2>
-        <span className={`ml-auto px-3 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[booking.status] ?? 'bg-gray-100 text-gray-600'}`}>
-          {booking.status}
-        </span>
+        {(() => {
+          const displayStatus = booking.status === 'cancelled' && booking.status_reason === 'payment_rejected' ? 'rejected' : booking.status;
+          return (
+            <span className={`ml-auto px-3 py-1 rounded-full text-xs font-semibold capitalize ${STATUS_COLORS[displayStatus] ?? 'bg-gray-100 text-gray-600'}`}>
+              {displayStatus}
+            </span>
+          );
+        })()}
       </div>
 
       {/* Booking Reference */}
@@ -116,7 +122,7 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
 
       {booking.status !== 'pending' && (
         <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-500 text-center">
-          This booking has been <strong>{booking.status}</strong>. No further action needed.
+          This booking has been <strong>{booking.status === 'cancelled' && booking.status_reason === 'payment_rejected' ? 'rejected' : booking.status}</strong>. No further action needed.
         </div>
       )}
 

@@ -16,11 +16,14 @@ export interface Package {
   label?: string;
   sublabel?: string;
   name: string;
-  price: string;
-  description?: string;
+  price: number;
+  description: string;
   featured: boolean;
   features?: string[];
   inclusions?: string[];
+  capacity: number;
+  maxStayDays: number;
+  allowsMultiDay?: boolean;
 }
 
 export interface FaqItem {
@@ -116,4 +119,6 @@ export interface Booking {
   updated_at: string;
   payment_type: 'full' | 'downpayment' | null;
   amount_due: string | null;
+  status_reason: string | null;
 }
+

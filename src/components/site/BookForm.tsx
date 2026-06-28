@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 // import ReCAPTCHA from 'react-google-recaptcha'; // re-enable when live
 import { createBooking, getFullyBookedDates } from '@/actions/bookings';
 import { SiteContent } from '@/lib/types';
+import { getSelectedPackage, getNextDayString, formatHumanDate } from '@/lib/package-helper';
 
 interface BookFormProps {
   content: SiteContent;
@@ -22,8 +23,16 @@ export default function BookForm({ content }: BookFormProps) {
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [sendingVerification, setSendingVerification] = useState(false);
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [verificationSessionId, setVerificationSessionId] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
+  const [resendAvailableAt, setResendAvailableAt] = useState(0);
+  const [resendCountdown, setResendCountdown] = useState(0);
   // const [recaptchaToken, setRecaptchaToken] = useState<string | null>(null); // re-enable when live
   const [paymentType, setPaymentType] = useState<'full' | 'downpayment'>('full');
   const [bookedDates, setBookedDates] = useState<string[]>([]);
@@ -46,8 +55,13 @@ export default function BookForm({ content }: BookFormProps) {
   });
 
   // Derived price info (must be after form state)
-  const selectedPackage = content.packages.find(p => p.name === form.packageName);
-  const priceNum = selectedPackage ? parseInt(selectedPackage.price.replace(/[^\d]/g, ''), 10) || 0 : 0;
+  const selectedPackage = getSelectedPackage(form.packageName, content.packages);
+  const maxCapacity = selectedPackage ? selectedPackage.capacity : 20;
+  const maxStayDays = selectedPackage ? selectedPackage.maxStayDays : 1;
+  const allowsMultiDay = maxStayDays > 1;
+  const priceNum = selectedPackage
+    ? (typeof selectedPackage.price === 'number' ? selectedPackage.price : parseInt((selectedPackage.price as any).replace(/[^\d]/g, ''), 10) || 0)
+    : 0;
   const amountDueNum = paymentType === 'full' ? priceNum : Math.ceil(priceNum / 2);
   const amountDueFormatted = amountDueNum > 0 ? '\u20B1' + amountDueNum.toLocaleString('en-PH') : '';
   const downpaymentFormatted = priceNum > 0 ? '\u20B1' + Math.ceil(priceNum / 2).toLocaleString('en-PH') : '';
@@ -71,7 +85,51 @@ export default function BookForm({ content }: BookFormProps) {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    const { name, value } = e.target;
+    
+    if (name === 'packageName') {
+      const selectedPkg = getSelectedPackage(value, content.packages);
+      setForm((prev) => {
+        const updated = { ...prev, packageName: value };
+        if (selectedPkg) {
+          const currentPax = parseInt(prev.pax, 10);
+          if (!isNaN(currentPax) && currentPax > selectedPkg.capacity) {
+            updated.pax = selectedPkg.capacity.toString();
+          }
+          if (selectedPkg.maxStayDays === 1 && prev.checkIn) {
+            updated.checkOut = getNextDayString(prev.checkIn);
+          }
+        }
+        return updated;
+      });
+      return;
+    }
+
+    if (name === 'pax') {
+      const val = parseInt(value, 10);
+      setForm((prev) => {
+        const selectedPkg = getSelectedPackage(prev.packageName, content.packages);
+        const capacity = selectedPkg ? selectedPkg.capacity : 20;
+        let clampedVal = value;
+        if (value !== '') {
+          if (!isNaN(val)) {
+            if (val > capacity) {
+              clampedVal = capacity.toString();
+            } else if (val < 1) {
+              clampedVal = '1';
+            } else {
+              clampedVal = val.toString();
+            }
+          } else {
+            clampedVal = '1';
+          }
+        }
+        return { ...prev, pax: clampedVal };
+      });
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const isRangeBooked = (start: string, end: string) => {
@@ -95,9 +153,23 @@ export default function BookForm({ content }: BookFormProps) {
     }
 
     if (name === 'checkOut') {
+      const selectedPkg = getSelectedPackage(form.packageName, content.packages);
+      const isMulti = selectedPkg ? selectedPkg.maxStayDays > 1 : false;
+      if (!isMulti) return; // read-only checkOut should not trigger changes
+      
       if (form.checkIn && value <= form.checkIn) {
         setError('Check-out must be after check-in.');
         return;
+      }
+      if (form.checkIn) {
+        const checkInDate = new Date(form.checkIn + 'T00:00:00');
+        const checkOutDate = new Date(value + 'T00:00:00');
+        const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (diffDays > (selectedPkg ? selectedPkg.maxStayDays : 1)) {
+          setError(`Stay duration exceeds the maximum stay limit of ${selectedPkg ? selectedPkg.maxStayDays : 1} days for this package.`);
+          return;
+        }
       }
       if (form.checkIn && isRangeBooked(form.checkIn, value)) {
         setError('Selected dates overlap with an existing booking.');
@@ -109,21 +181,37 @@ export default function BookForm({ content }: BookFormProps) {
     }
 
     if (name === 'checkIn') {
-      let nextCheckOut = form.checkOut;
-      const hadCheckOut = Boolean(nextCheckOut);
-      let cleared = false;
-      if (nextCheckOut && nextCheckOut <= value) {
-        nextCheckOut = '';
-        cleared = true;
-      } else if (nextCheckOut && isRangeBooked(value, nextCheckOut)) {
-        nextCheckOut = '';
-        cleared = true;
-      }
-      setForm((prev) => ({ ...prev, checkIn: value, checkOut: nextCheckOut }));
-      if (cleared && hadCheckOut) {
-        setError('Please select a new check-out date.');
-      } else {
+      const selectedPkg = getSelectedPackage(form.packageName, content.packages);
+      const isMulti = selectedPkg ? selectedPkg.maxStayDays > 1 : false;
+      
+      if (!isMulti) {
+        const nextCheckOut = getNextDayString(value);
+        if (bookedDatesSet.has(nextCheckOut) || isRangeBooked(value, nextCheckOut)) {
+          setError('Selected stay dates overlap with existing bookings.');
+          return;
+        }
         setError(null);
+        setForm((prev) => ({ ...prev, checkIn: value, checkOut: nextCheckOut }));
+      } else {
+        let nextCheckOut = form.checkOut;
+        const hadCheckOut = Boolean(nextCheckOut);
+        let cleared = false;
+        if (nextCheckOut) {
+          const checkInDate = new Date(value + 'T00:00:00');
+          const checkOutDate = new Date(nextCheckOut + 'T00:00:00');
+          const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          if (nextCheckOut <= value || diffDays > (selectedPkg ? selectedPkg.maxStayDays : 1) || isRangeBooked(value, nextCheckOut)) {
+            nextCheckOut = '';
+            cleared = true;
+          }
+        }
+        setForm((prev) => ({ ...prev, checkIn: value, checkOut: nextCheckOut }));
+        if (cleared && hadCheckOut) {
+          setError('Please select a new check-out date matching the package stay limit.');
+        } else {
+          setError(null);
+        }
       }
       return;
     }
@@ -151,16 +239,36 @@ export default function BookForm({ content }: BookFormProps) {
     }
   };
 
-  const handleStep1 = (e: React.FormEvent) => {
+  const handleStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name || !form.email || !form.phone || !form.packageName || !form.checkIn || !form.checkOut) {
+    if (!form.name || !form.email || !form.phone || !form.packageName || !form.checkIn || !form.checkOut || !form.pax) {
       setError('Please fill in all required fields.');
+      return;
+    }
+    const guestCount = parseInt(form.pax, 10);
+    if (isNaN(guestCount) || guestCount < 1) {
+      setError('Number of guests must be at least 1.');
+      return;
+    }
+    if (selectedPackage && guestCount > maxCapacity) {
+      setError(`Number of guests exceeds the maximum capacity of ${maxCapacity} for this package.`);
       return;
     }
     if (form.checkOut <= form.checkIn) {
       setError('Check-out must be after check-in.');
       return;
     }
+
+    // Validate stay duration
+    const checkInDate = new Date(form.checkIn + 'T00:00:00');
+    const checkOutDate = new Date(form.checkOut + 'T00:00:00');
+    const diffTime = checkOutDate.getTime() - checkInDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays > maxStayDays) {
+      setError(`Stay duration exceeds the maximum stay limit of ${maxStayDays} days for this package.`);
+      return;
+    }
+
     if (bookedDatesLoading) {
       setError('Checking date availability. Please wait...');
       return;
@@ -169,8 +277,43 @@ export default function BookForm({ content }: BookFormProps) {
       setError('Selected dates are already booked. Please choose different dates.');
       return;
     }
+
     setError(null);
-    setStep(2);
+    setSendingVerification(true);
+    try {
+      const response = await fetch('/api/booking/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guest_name: form.name,
+          guest_email: form.email,
+          guest_phone: form.phone,
+          package_name: form.packageName,
+          check_in: form.checkIn,
+          check_out: form.checkOut,
+          pax: Number(form.pax),
+          payment_type: paymentType,
+          notes: form.notes,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        setError(data.error || 'Failed to send verification code. Please try again.');
+        return;
+      }
+
+      setVerificationSessionId(data.sessionId);
+      setStep(2);
+      setResendMessage('A verification code has been sent to your email.');
+      setResendAvailableAt(Date.now() + 60_000);
+      setResendCountdown(60);
+    } catch (err) {
+      setError('Failed to start email verification. Please try again.');
+      return;
+    } finally {
+      setSendingVerification(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -179,11 +322,11 @@ export default function BookForm({ content }: BookFormProps) {
       setError('Please upload your payment receipt.');
       return;
     }
-    // reCAPTCHA check disabled until live — re-enable below:
-    // if (!recaptchaToken) {
-    //   setError('Please complete the reCAPTCHA verification.');
-    //   return;
-    // }
+    if (!verificationSessionId) {
+      setError('Please verify your email before submitting your booking.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -191,19 +334,16 @@ export default function BookForm({ content }: BookFormProps) {
       const formData = new FormData();
       Object.entries(form).forEach(([k, v]) => formData.append(k, v));
       formData.append('receipt', receiptFile);
-      // formData.append('recaptchaToken', recaptchaToken); // re-enable when live
       formData.append('paymentType', paymentType);
+      formData.append('verificationSessionId', verificationSessionId);
       if (amountDueFormatted) formData.append('amountDue', amountDueFormatted);
 
       const result = await createBooking(formData);
       if (result.error) {
         setError(result.error);
         setLoading(false);
-        // recaptchaRef.current?.reset(); // re-enable when live
-        // setRecaptchaToken(null); // re-enable when live
         return;
       }
-      // Save email so My Bookings page can auto-fill
       localStorage.setItem('kl_guest_email', form.email);
       router.push(`/booking/${result.id}`);
     } catch {
@@ -226,6 +366,23 @@ export default function BookForm({ content }: BookFormProps) {
     }, 5000);
     return () => window.clearTimeout(timer);
   }, [error]);
+
+  useEffect(() => {
+    if (!resendAvailableAt) {
+      setResendCountdown(0);
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      const seconds = Math.max(0, Math.ceil((resendAvailableAt - Date.now()) / 1000));
+      setResendCountdown(seconds);
+      if (seconds <= 0) {
+        window.clearInterval(interval);
+      }
+    }, 250);
+
+    return () => window.clearInterval(interval);
+  }, [resendAvailableAt]);
 
   useEffect(() => {
     setBookedDatesPage((prev) => Math.min(prev, Math.max(1, Math.ceil(bookedDates.length / BOOKED_DATES_PAGE_SIZE))));
@@ -254,7 +411,7 @@ export default function BookForm({ content }: BookFormProps) {
     <div className="max-w-xl mx-auto">
       {/* Step indicator */}
       <div className="flex items-center gap-2 mb-8">
-        {[1, 2].map((s) => (
+        {[1, 2, 3].map((s) => (
           <div key={s} className="flex items-center gap-2">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
@@ -264,9 +421,9 @@ export default function BookForm({ content }: BookFormProps) {
               {s}
             </div>
             <span className={`text-sm ${step >= s ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
-              {s === 1 ? 'Your Details' : 'Upload Receipt'}
+              {s === 1 ? 'Your Details' : s === 2 ? 'Email Verification' : 'Upload Receipt'}
             </span>
-            {s < 2 && <div className={`w-12 h-0.5 ${step > s ? 'bg-primary' : 'bg-gray-200'}`} />}
+            {s < 3 && <div className={`w-12 h-0.5 ${step > s ? 'bg-primary' : 'bg-gray-200'}`} />}
           </div>
         ))}
       </div>
@@ -339,7 +496,9 @@ export default function BookForm({ content }: BookFormProps) {
               >
                 <option value="">Select a package</option>
                 {content.packages.map((pkg, i) => (
-                  <option key={i} value={pkg.name}>{pkg.name} — {pkg.price}</option>
+                  <option key={i} value={pkg.name}>
+                    {pkg.name} — {typeof pkg.price === 'number' ? '₱' + pkg.price.toLocaleString('en-PH') : pkg.price}
+                  </option>
                 ))}
               </select>
             </div>
@@ -349,7 +508,9 @@ export default function BookForm({ content }: BookFormProps) {
               <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">Package Price</span>
-                  <span className="text-2xl font-bold text-primary">{selectedPackage.price}</span>
+                  <span className="text-2xl font-bold text-primary">
+                    {typeof selectedPackage.price === 'number' ? '₱' + selectedPackage.price.toLocaleString('en-PH') : selectedPackage.price}
+                  </span>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Payment Option</p>
@@ -364,7 +525,9 @@ export default function BookForm({ content }: BookFormProps) {
                       }`}
                     >
                       Full Payment
-                      <span className={`block text-xs mt-0.5 ${paymentType === 'full' ? 'opacity-80' : 'text-gray-500'}`}>{selectedPackage.price}</span>
+                      <span className={`block text-xs mt-0.5 ${paymentType === 'full' ? 'opacity-80' : 'text-gray-500'}`}>
+                        {typeof selectedPackage.price === 'number' ? '₱' + selectedPackage.price.toLocaleString('en-PH') : selectedPackage.price}
+                      </span>
                     </button>
                     <button
                       type="button"
@@ -404,15 +567,30 @@ export default function BookForm({ content }: BookFormProps) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Check-out Date *</label>
-                <input
-                  type="date"
-                  name="checkOut"
-                  value={form.checkOut}
-                  onChange={handleDateChange}
-                  required
-                  min={form.checkIn || new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40"
-                />
+                {allowsMultiDay ? (
+                  <>
+                    <input
+                      type="date"
+                      name="checkOut"
+                      value={form.checkOut}
+                      onChange={handleDateChange}
+                      required
+                      min={form.checkIn || new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 bg-white"
+                    />
+                    <span className="text-xs text-gray-400 block mt-1">Maximum stay: {maxStayDays} days</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-full px-4 py-[11px] border border-gray-300 rounded-lg bg-gray-50 text-gray-400 font-medium select-none">
+                      {form.checkIn ? formatHumanDate(form.checkOut) : 'Select check-in first'}
+                    </div>
+                    <span className="text-xs text-gray-400 block mt-1 leading-normal">
+                      This package includes a 1-day stay.<br />
+                      The check-out date is calculated automatically.
+                    </span>
+                  </>
+                )}
               </div>
             </div>
             {(bookedDatesLoading || bookedDatesError) && (
@@ -481,9 +659,10 @@ export default function BookForm({ content }: BookFormProps) {
                 onChange={handleChange}
                 required
                 min="1"
-                max="50"
+                max={maxCapacity}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40"
               />
+              <span className="text-xs text-gray-400 block mt-1">Maximum guests allowed: {maxCapacity}</span>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Special Requests (optional)</label>
@@ -507,6 +686,131 @@ export default function BookForm({ content }: BookFormProps) {
       )}
 
       {step === 2 && (
+        <div className="space-y-6">
+          <div className="bg-background-light rounded-xl p-6 border border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-900">Verify your email before payment</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Before you continue to payment and upload your receipt, we need to confirm that this booking is associated with your email address.
+            </p>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
+            <div>
+              <p className="text-sm text-gray-500">A 6-digit verification code was sent to</p>
+              <p className="mt-1 font-semibold text-gray-900">{form.email}</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Verification Code</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                name="verificationCode"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value.replace(/[^0-9]/g, ''))}
+                placeholder="Enter 6-digit code"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+            </div>
+
+            {resendMessage && (
+              <p className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-lg p-3">{resendMessage}</p>
+            )}
+
+            <div className="grid sm:grid-cols-[1fr_auto] gap-3">
+              <button
+                type="button"
+                onClick={async () => {
+                  setError(null);
+                  setResendMessage(null);
+                  setResendLoading(true);
+                  try {
+                    const response = await fetch('/api/booking/start', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        guest_name: form.name,
+                        guest_email: form.email,
+                        guest_phone: form.phone,
+                        package_name: form.packageName,
+                        check_in: form.checkIn,
+                        check_out: form.checkOut,
+                        pax: Number(form.pax),
+                        payment_type: paymentType,
+                        notes: form.notes,
+                      }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok || data.error) {
+                      setError(data.error || 'Failed to resend verification code.');
+                      return;
+                    }
+                    setVerificationSessionId(data.sessionId);
+                    setResendMessage('Verification code resent successfully.');
+                    setResendAvailableAt(Date.now() + 60_000);
+                    setResendCountdown(60);
+                  } catch (err) {
+                    setError('Unable to resend verification code. Please try again.');
+                  } finally {
+                    setResendLoading(false);
+                  }
+                }}
+                disabled={resendCountdown > 0 || resendLoading}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-primary bg-white px-4 py-3 text-sm font-semibold text-primary shadow-sm transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {resendLoading ? 'Resending...' : resendCountdown > 0 ? `Resend in ${resendCountdown}s` : 'Resend Code'}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setError(null);
+                  setVerifyLoading(true);
+                  try {
+                    const response = await fetch('/api/booking/verify', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        sessionId: verificationSessionId,
+                        code: verificationCode,
+                      }),
+                    });
+                    const data = await response.json();
+                    if (!response.ok || !data.success) {
+                      setError(data.error || 'Verification failed.');
+                      return;
+                    }
+                    setStep(3);
+                    setResendMessage('Email verified successfully. You can now upload your receipt.');
+                  } catch (err) {
+                    setError('An error occurred during verification. Please try again.');
+                  } finally {
+                    setVerifyLoading(false);
+                  }
+                }}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {verifyLoading ? 'Verifying...' : 'Verify Code'}
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-sm font-semibold text-gray-700 hover:text-primary"
+              >
+                &larr; Back to booking details
+              </button>
+              <p className="text-sm text-gray-500">
+                {verificationSessionId ? 'If you still do not receive the email, check your spam folder or resend the code.' : 'Press Continue to send a verification code.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {step === 3 && (
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Summary */}
           <div className="bg-background-light rounded-lg p-4 text-sm space-y-1.5">
@@ -518,7 +822,7 @@ export default function BookForm({ content }: BookFormProps) {
             <div className="flex justify-between"><span className="text-gray-500">Guests</span><span className="text-gray-900">{form.pax}</span></div>
             {selectedPackage && (
               <>
-                <div className="flex justify-between"><span className="text-gray-500">Package Price</span><span className="font-medium text-gray-900">{selectedPackage.price}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">Package Price</span><span className="font-medium text-gray-900">{typeof selectedPackage.price === 'number' ? '₱' + selectedPackage.price.toLocaleString('en-PH') : selectedPackage.price}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">Payment Type</span><span className="text-gray-900">{paymentType === 'downpayment' ? 'Downpayment (50%)' : 'Full Payment'}</span></div>
                 <div className="flex justify-between border-t border-gray-200 pt-2 mt-1"><span className="font-semibold text-gray-700">Amount Due Now</span><span className="font-bold text-primary text-base">{amountDueFormatted}</span></div>
               </>
@@ -575,16 +879,6 @@ export default function BookForm({ content }: BookFormProps) {
             <p className="text-gray-500 text-xs">Once we verify your payment, we&apos;ll <strong>text or call you</strong> to confirm your booking (usually within 24 hours).</p>
           </div>
 
-          {/* reCAPTCHA — re-enable when live */}
-          {/* <div className="flex justify-center">
-            <ReCAPTCHA
-              ref={recaptchaRef}
-              sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY!}
-              onChange={(token) => setRecaptchaToken(token)}
-              onExpired={() => setRecaptchaToken(null)}
-            />
-          </div> */}
-
           {/* File upload */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Payment Receipt *</label>
@@ -619,7 +913,7 @@ export default function BookForm({ content }: BookFormProps) {
           <div className="flex gap-3">
             <button
               type="button"
-              onClick={() => setStep(1)}
+              onClick={() => setStep(2)}
               className="flex-1 border border-gray-300 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
             >
               Back

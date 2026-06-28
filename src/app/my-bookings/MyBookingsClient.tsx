@@ -14,18 +14,21 @@ type BookingSummary = {
   status: string;
   reference: string | null;
   created_at: string;
+  status_reason?: string | null;
 };
 
 const STATUS_STYLES: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800',
   confirmed: 'bg-green-100 text-green-800',
   cancelled: 'bg-red-100 text-red-800',
+  rejected: 'bg-red-100 text-red-800',
 };
 
 const STATUS_ICONS: Record<string, string> = {
   pending: 'hourglass_empty',
   confirmed: 'check_circle',
   cancelled: 'cancel',
+  rejected: 'cancel',
 };
 
 const STATUS_MESSAGES: Record<string, { bg: string; text: string; icon: string; msg: string }> = {
@@ -46,6 +49,12 @@ const STATUS_MESSAGES: Record<string, { bg: string; text: string; icon: string; 
     text: 'text-red-700',
     icon: 'info',
     msg: 'This booking has been cancelled. Contact us for assistance.',
+  },
+  rejected: {
+    bg: 'bg-red-50',
+    text: 'text-red-700',
+    icon: 'info',
+    msg: 'Booking rejected due to inauthentic payment image given.',
   },
 };
 
@@ -75,7 +84,10 @@ export default function MyBookingsClient() {
     }
   };
 
-  const statusInfo = booking ? STATUS_MESSAGES[booking.status] : null;
+  const displayStatus = booking 
+    ? (booking.status === 'cancelled' && booking.status_reason === 'payment_rejected' ? 'rejected' : booking.status)
+    : '';
+  const statusInfo = displayStatus ? STATUS_MESSAGES[displayStatus] : null;
 
   return (
     <div className="space-y-6">
@@ -121,9 +133,9 @@ export default function MyBookingsClient() {
       {booking && (
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           {/* Status banner */}
-          <div className={`flex items-center gap-2 px-5 py-3 ${STATUS_STYLES[booking.status] ?? 'bg-gray-100 text-gray-700'}`}>
-            <span className="material-icons text-base">{STATUS_ICONS[booking.status] ?? 'info'}</span>
-            <span className="text-sm font-semibold capitalize">{booking.status}</span>
+          <div className={`flex items-center gap-2 px-5 py-3 ${STATUS_STYLES[displayStatus] ?? 'bg-gray-100 text-gray-700'}`}>
+            <span className="material-icons text-base">{STATUS_ICONS[displayStatus] ?? 'info'}</span>
+            <span className="text-sm font-semibold capitalize">{displayStatus}</span>
             <span className="ml-auto text-xs opacity-70">
               Booked on {new Date(booking.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
             </span>
