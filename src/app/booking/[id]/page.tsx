@@ -1,5 +1,6 @@
 import { getBooking } from '@/actions/bookings';
 import { getContent } from '@/actions/content';
+import { formatCurrency } from '@/lib/package-helper';
 import Navbar from '@/components/site/Navbar';
 import Footer from '@/components/site/Footer';
 import NavbarClient from '@/components/site/NavbarClient';
@@ -227,7 +228,7 @@ export default async function BookingConfirmationPage({ params }: { params: Prom
               {booking.amount_due && (
                 <div className="flex justify-between font-semibold border-t border-gray-200 pt-2 mt-1">
                   <span className="text-gray-700">Amount Due</span>
-                  <span className="text-primary">{booking.amount_due}</span>
+                  <span className="text-primary">{formatCurrency(booking.amount_due)}</span>
                 </div>
               )}
               <div className="flex justify-between">

@@ -1,86 +1,59 @@
-# Walkthrough: Metadata-Driven Package System
+# Walkthrough: AI Payment Verification Module
 
-I have successfully converted the booking and package systems of Kamp Lambingan to be fully **metadata-driven**. The behavior of guest counts and check-out selections is now controlled entirely by package configurations set in the Admin Panel rather than hardcoded rules or package names.
+We have successfully implemented the automated payment verification module inside the resort's CMS to automatically process and validate uploaded GCash receipts.
 
----
+## Summary of Changes
 
-## What Has Been Built
+### 1. Database Migrations
+Created [payment-verifications.sql](file:///d:/repos/kamp-lambingan/payment-verifications.sql):
+- **`payment_verifications`**: A new table tracking all verification attempts (including status: `'pending'`, `'processing'`, `'verified'`, `'failed'`, `'manual_review'`), confidence scores, raw OCR payloads, and parsed values.
+- **`bookings.amount_due`**: Migrated column from `TEXT` to `NUMERIC(10,2)` after casting existing entries.
+- **`create_booking_safe` RPC**: Redefined parameters to accept `p_amount_due numeric` directly.
+- **App Settings**: Seeded default thresholds: `ocr_confidence_threshold = 0.75` and `parser_confidence_threshold = 0.80`.
 
-### 1. Extended Package Model & Defaults
-- **Types Update**: Extended the `Package` interface in [types.ts](file:///d:/repos/kamp-lambingan/src/lib/types.ts) to require `price: number`, `description: string`, `capacity: number` (Maximum Guests), and `maxStayDays: number` (Maximum Stay (Days)).
-- **Default Package Setup**: Configured standard options in [defaults.ts](file:///d:/repos/kamp-lambingan/src/lib/defaults.ts) to use these new fields explicitly (Weekday and Weekend packages are set to `maxStayDays: 1`, Group Retreat set to `maxStayDays: 3`).
+### 2. Centralized Verification Action
+Created [payment-verification.ts](file:///d:/repos/kamp-lambingan/src/actions/payment-verification.ts):
+- **`verifyPayment()`**: Implements a robust payment verification workflow.
+  - Inserts attempt row with `'processing'` status.
+  - Downloads receipt from Supabase storage (private bucket).
+  - Triggers external OCR call with a fetch abort timeout (`RECEIPT_OCR_SERVICE_TIMEOUT_MS`).
+  - Retries up to 3 times with exponential backoff on connection/timeout issues.
+  - Performs amount matches, duplicate reference check, and confidence tests.
+  - Automatically updates booking status to `'confirmed'` (if verified) and triggers guest confirmation emails, or marks with appropriate booking `status_reason` (`'Amount mismatch'`, `'Duplicate transaction reference'`, or `'Waiting for manual verification'`).
+- **`reprocessReceiptAction()`**: Allows administrators to manually trigger verification directly from the detail page.
 
-### 2. Auto-Migration & Normalization
-- **Legacy Fallbacks**: Updated `getContent()` in [content.ts](file:///d:/repos/kamp-lambingan/src/actions/content.ts) to intercept legay package data loaded from the DB, clean up price string representations into numbers, and assign sensible defaults for capacity and stay duration. This keeps old database entries backwards-compatible.
-- **Shared Matching Utility**: Modified `getSelectedPackage()` in [package-helper.ts](file:///d:/repos/kamp-lambingan/src/lib/package-helper.ts) to fetch stay limits and guest capacities directly from the newly created metadata properties.
+### 3. Asynchronous Integration
+- Modified [bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts) and [upload-receipt/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/upload-receipt/route.ts):
+  - Integrates verification triggers via Next.js `after()` API.
+  - This allows Next.js to immediately respond to the guest with a successful upload result while running the OCR and validation logic completely in the background, significantly reducing latency.
+- Adapted [complete/route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/complete/route.ts) to handle the new numeric `p_amount_due` in the database.
 
-### 3. Admin Panel UI Updates
-- **Inputs added**: Added input controls to the Packages editor under the **Admin → Content** tab in [ContentEditor.tsx](file:///d:/repos/kamp-lambingan/src/components/admin/ContentEditor.tsx):
-  - **Maximum Guests**: Numeric required input, minimum value `1`.
-  - **Maximum Stay (Days)**: Numeric required input, minimum value `1`.
-  - **Price (₱)**: Converted to a numeric required input.
-  - **Description**: Marked as a required textarea.
-- **Package Addition**: Configured the "Add Package" action to default new packages to `maxStayDays: 1` and `capacity: 2`.
+### 4. Currency Formatting Helpers
+- Updated [package-helper.ts](file:///d:/repos/kamp-lambingan/src/lib/package-helper.ts) with `formatCurrency()` to format numeric database fields back to `₱X,XXX` dynamically in guest-facing pages and admin lists.
 
-### 4. Parity Booking Form Enhancements
-- **Dynamic Check-out Logic**: Updated the Chat Widget Booking Wizard [ChatWidget.tsx](file:///d:/repos/kamp-lambingan/src/components/site/ChatWidget.tsx) and the Standalone Page Form [BookForm.tsx](file:///d:/repos/kamp-lambingan/src/components/site/BookForm.tsx):
-  - **`maxStayDays === 1`**: Check-out input is replaced by a read-only date view automatically locked to `Check-in + 1 day`. Displays helper message: `"This package includes a 1-day stay. The check-out date is calculated automatically."`
-  - **`maxStayDays > 1`**: Check-out input is editable. Displays helper message: `"Maximum stay: X days"`. Prevents submission if the selected range exceeds the maximum allowed stay duration.
-- **Dynamic Pax Clamping**: Enforces guest limits dynamically up to `package.capacity`, preventing form submission if exceeded. Displays: `"Maximum guests allowed: X"` helper labels.
-
-### 5. Multi-Layered Backend API Securing
-- Enforced identical checks on the backend (capacity checking, stay duration matching stay limits) in:
-  - `createBooking` server action inside [bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts).
-  - API start session endpoint [route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/start/route.ts).
-  - API complete checkout endpoint [route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/complete/route.ts).
-
-### 6. AI Agent Synchronization
-- Updated AI instruction templates in [knowledge-base.ts](file:///d:/repos/kamp-lambingan/src/lib/knowledge-base.ts) so the bot dynamically understands configuration limits and ceases explaining name-based checks.
-
----
-
-## Verification Results
-
-### Automated Verification
-Next.js production build (`npm run build`) runs and compiles successfully with zero TypeScript or path errors:
-```text
-▲ Next.js 16.1.6 (Turbopack)
-- Environments: .env
-- Experiments (use with caution):
-  · serverActions
-
-  Creating an optimized production build ...
-✓ Compiled successfully in 5.7s
-  Running TypeScript ...
-  Collecting page data using 11 workers ...
-  Generating static pages using 11 workers (13/13) in 583.6ms
-  Finalizing page optimization ...
-```
-All route endpoints and client components are verified to compile.
+### 5. Admin Dashboard Features
+- Modified [page.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/%5Bid%5D/page.tsx) and [BookingsTable.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/BookingsTable.tsx):
+  - Renders a premium status card containing the latest verification logs.
+  - Renders visual badges for statuses (`⌛ Processing...`, `✅ Payment Verified`, `❌ Failed`, and `⚠ Manual Review Required`).
+  - Lists extracted details (reference, amount, date, sender details) side-by-side with expected booking values.
+  - Lists the OCR and parser confidence scores along with active system versions.
+- Added [ReprocessButton.tsx](file:///d:/repos/kamp-lambingan/src/components/admin/ReprocessButton.tsx):
+  - Renders an interactive admin button that spins during processing, executing `reprocessReceiptAction()` and auto-refreshing the view when done.
 
 ---
 
-## Rejection Status Tracking & Display (New Update)
+## Validation Results
 
-I have implemented tracking of the payment rejection reason in the database to display a detailed **`rejected`** status and custom reason message to guests and admins instead of generic `cancelled` statuses.
+- Compiled the Next.js application using `npm run build` and resolved all TypeScript types:
+  ```bash
+  ▲ Next.js 16.1.6 (Turbopack)
+  ✓ Compiled successfully in 5.6s
+  ✓ Generating static pages using 11 workers (13/13) in 576.9ms
+  ```
 
-### Changes Made
+---
 
-1. **Database Schema updates**:
-   - Added the `status_reason` column to the schema definitions in [bookings-table.sql](file:///d:/repos/kamp-lambingan/bookings-table.sql) and [bookings-capacity.sql](file:///d:/repos/kamp-lambingan/bookings-capacity.sql):
-     `ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS status_reason text;`
-2. **TypeScript & Model Integration**:
-   - Added `status_reason: string | null` to the `Booking` interface in [types.ts](file:///d:/repos/kamp-lambingan/src/lib/types.ts).
-   - Added `status_reason?: string | null` to the `BookingSummary` type in [MyBookingsClient.tsx](file:///d:/repos/kamp-lambingan/src/app/my-bookings/MyBookingsClient.tsx).
-3. **Server Actions Logic**:
-   - Modified `updateBookingStatus` inside [bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts) to write the `status_reason: reason` value to the database when updating status.
-   - Updated `getBookingByReference` to explicitly retrieve the `status_reason` column when guests look up their reference code.
-4. **Guest Lookup Pages**:
-   - Modified [MyBookingsClient.tsx](file:///d:/repos/kamp-lambingan/src/app/my-bookings/MyBookingsClient.tsx) to check if a booking is cancelled with a `payment_rejected` reason. It dynamically renders the status as **`rejected`** with a red badge, displaying the rejection alert message:
-     `Booking rejected due to inauthentic payment image given.`
-   - Updated [page.tsx](file:///d:/repos/kamp-lambingan/src/app/booking/[id]/page.tsx) to dynamically adjust headings, icons, status badges, and instructions for all booking states (`pending`, `confirmed`, `cancelled`, `rejected`, `expired`). Under the rejected state, it displays the message:
-     `booking rejected due to inauthentic payment image given. If you believe this is a mistake, please make a new booking with a valid receipt, or reach out to us.`
-5. **Admin Dashboard Views**:
-   - Updated [BookingsTable.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/BookingsTable.tsx) to map and show `rejected` in red for rejected bookings in both the table rows and the details dialog popup.
-   - Updated [page.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/[id]/page.tsx) to display the `rejected` status in the details card view.
+## Action Required: Run SQL Migrations
 
+> [!WARNING]
+> Please execute the SQL statements in [payment-verifications.sql](file:///d:/repos/kamp-lambingan/payment-verifications.sql) inside your **Supabase SQL Editor** to create the tables, enable policies, migrate amount columns, and update the RPC functions.

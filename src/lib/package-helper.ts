@@ -95,3 +95,14 @@ export function formatHumanDate(dateStr: string): string {
     year: 'numeric'
   });
 }
+
+/**
+ * Formats a numeric amount or string into a currency string (₱X,XXX.XX).
+ */
+export function formatCurrency(amount: number | string | null | undefined): string {
+  if (amount === null || amount === undefined || amount === '') return '';
+  const num = typeof amount === 'number' ? amount : parseFloat(String(amount).replace(/[^\d.]/g, ''));
+  if (isNaN(num)) return '';
+  return '₱' + num.toLocaleString('en-PH');
+}
+

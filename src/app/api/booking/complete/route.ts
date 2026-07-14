@@ -80,7 +80,8 @@ export async function POST(req: Request) {
     }
 
     // 4. Validate package metadata & calculate amount due on the server
-    let amountDue = '';
+    let amountDueNum = 0;
+    let amountDueFormatted = '';
     try {
       const siteContent = await getContent();
       const selectedPkg = getSelectedPackage(package_name, siteContent.packages);
@@ -121,8 +122,8 @@ export async function POST(req: Request) {
       const priceNum = typeof selectedPkg.price === 'number' 
         ? selectedPkg.price 
         : (parseInt((selectedPkg.price as any).replace(/[^\d]/g, ''), 10) || 0);
-      const amountDueNum = payment_type === 'full' ? priceNum : Math.ceil(priceNum / 2);
-      amountDue = amountDueNum > 0 ? '₱' + amountDueNum.toLocaleString('en-PH') : '';
+      amountDueNum = payment_type === 'full' ? priceNum : Math.ceil(priceNum / 2);
+      amountDueFormatted = amountDueNum > 0 ? '₱' + amountDueNum.toLocaleString('en-PH') : '';
     } catch (err) {
       console.error('[API booking/complete] validation/pricing calculation failed:', err);
       return NextResponse.json({ error: 'Pricing/capacity validation failed.' }, { status: 500 });
@@ -144,7 +145,7 @@ export async function POST(req: Request) {
         p_notes: notes ?? null,
         p_reference: reference,
         p_payment_type: payment_type,
-        p_amount_due: amountDue ?? null,
+        p_amount_due: amountDueNum,
       });
 
     if (rpcError) {
@@ -181,7 +182,7 @@ export async function POST(req: Request) {
       checkOut: check_out,
       pax,
       paymentType: payment_type,
-      amountDue,
+      amountDue: amountDueFormatted,
       reference,
       bookingId,
       notes: notes ?? null,
@@ -208,7 +209,7 @@ export async function POST(req: Request) {
           payment_type,
           notes,
           reference,
-          amount_due: amountDue,
+          amount_due: amountDueFormatted,
           booking_completed: true,
         };
 
@@ -232,7 +233,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       reference,
-      amount_due: amountDue,
+      amount_due: amountDueFormatted,
       booking_id: bookingId,
     });
   } catch (err: any) {

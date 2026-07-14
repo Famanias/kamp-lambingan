@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Booking } from '@/lib/types';
 import ArchiveRowButton from './ArchiveRowButton';
 import BookingActions from '@/components/admin/BookingActions';
+import { formatCurrency } from '@/lib/package-helper';
 import {
   archiveBookings,
   archiveAllBookings,
@@ -426,7 +427,7 @@ export default function BookingsTable({ bookings, isArchiveView, retentionDays }
                   {selectedBooking.amount_due && (
                     <div>
                       <span className="text-gray-400 block text-xs">Amount Due</span>
-                      <span className="font-semibold text-primary">{selectedBooking.amount_due}</span>
+                      <span className="font-semibold text-primary">{formatCurrency(selectedBooking.amount_due)}</span>
                     </div>
                   )}
                   {selectedBooking.notes && (

@@ -5,7 +5,7 @@ import { headers } from 'next/headers';
 import { createClient, getServiceClient, requireAdmin } from '@/lib/supabase/server';
 import { collectBookedDates, expandDateRange } from '@/lib/booking-dates';
 import { getContent } from './content';
-import { getSelectedPackage, getNextDayString } from '@/lib/package-helper';
+import { getSelectedPackage, getNextDayString, formatCurrency } from '@/lib/package-helper';
 import {
   sendBookingReceivedEmail,
   sendBookingConfirmedEmail,
@@ -13,6 +13,8 @@ import {
   sendBookingCancelledEmail,
 } from '@/lib/email/booking-notifications';
 import crypto from 'crypto';
+import { after } from 'next/server';
+import { verifyPayment } from './payment-verification';
 
 export interface BookingInput {
   guest_name: string;
@@ -25,8 +27,9 @@ export interface BookingInput {
   notes?: string;
   receipt_url?: string;
   payment_type: 'full' | 'downpayment';
-  amount_due?: string;
+  amount_due?: number;
 }
+
 
 // In-memory rate limiting map
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -165,7 +168,7 @@ export async function createBooking(formData: FormData) {
       ? selectedPkg.price
       : (parseInt((selectedPkg.price as any).replace(/[^\d]/g, ''), 10) || 0);
     const amountDueNum = input.payment_type === 'full' ? priceNum : Math.ceil(priceNum / 2);
-    input.amount_due = amountDueNum > 0 ? '₱' + amountDueNum.toLocaleString('en-PH') : '';
+    input.amount_due = amountDueNum > 0 ? amountDueNum : 0;
   } catch (err) {
     console.error('[createBooking] validation/pricing calculation failed:', err);
     return { success: false, error: 'Pricing/capacity validation failed.', id: null, reference: null };
@@ -215,6 +218,15 @@ export async function createBooking(formData: FormData) {
 
       if (updateErr) {
         console.error('[createBooking] DB update receipt URL error:', updateErr.message);
+      } else {
+        // Trigger background payment verification (non-blocking)
+        after(async () => {
+          try {
+            await verifyPayment(bookingId);
+          } catch (err) {
+            console.error('[createBooking] Background verification failed:', err);
+          }
+        });
       }
       input.receipt_url = receiptUrl;
     }
@@ -231,7 +243,7 @@ export async function createBooking(formData: FormData) {
       checkOut: input.check_out,
       pax: input.pax,
       paymentType: input.payment_type,
-      amountDue: input.amount_due,
+      amountDue: formatCurrency(input.amount_due),
       reference,
       bookingId,
       notes: input.notes ?? null,
@@ -579,7 +591,7 @@ export async function updateBookingStatus(
         pax: booking.pax,
         paymentType: booking.payment_type === 'downpayment' ? 'downpayment' : 'full',
         reference: booking.reference,
-        amountDue: booking.amount_due,
+        amountDue: formatCurrency(booking.amount_due),
       } as const;
 
       if (status === 'confirmed') {

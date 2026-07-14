@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import BookingActions from '@/components/admin/BookingActions';
 import ArchiveRowButton from '../ArchiveRowButton';
+import { getServiceClient } from '@/lib/supabase/server';
+import { formatCurrency } from '@/lib/package-helper';
+import ReprocessButton from '@/components/admin/ReprocessButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +26,17 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
   const { data: booking, error } = await getBooking(id);
 
   if (!booking || error) notFound();
+
+  // Fetch the latest payment verification attempt
+  const supabase = getServiceClient();
+  const { data: verification } = await supabase
+    .from('payment_verifications')
+    .select('*')
+    .eq('booking_id', id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -72,7 +86,7 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
           <div><span className="text-gray-400 block text-xs">Check-in</span><span>{booking.check_in}</span></div>
           <div><span className="text-gray-400 block text-xs">Check-out</span><span>{booking.check_out}</span></div>
           <div><span className="text-gray-400 block text-xs">Payment Type</span><span className="capitalize font-medium">{booking.payment_type === 'downpayment' ? 'Downpayment (50%)' : 'Full Payment'}</span></div>
-          {booking.amount_due && <div><span className="text-gray-400 block text-xs">Amount Due</span><span className="font-semibold text-primary">{booking.amount_due}</span></div>}
+          {booking.amount_due && <div><span className="text-gray-400 block text-xs">Amount Due</span><span className="font-semibold text-primary">{formatCurrency(booking.amount_due)}</span></div>}
           {booking.notes && <div className="col-span-2"><span className="text-gray-400 block text-xs">Notes</span><span className="text-gray-700">{booking.notes}</span></div>}
         </div>
       </div>
@@ -114,6 +128,153 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
           <p className="text-gray-400 text-sm">No receipt uploaded.</p>
         )}
       </div>
+
+      {/* AI Payment Verification Log */}
+      {booking.receipt_url && (
+        <div className="bg-white rounded-xl shadow-sm p-5 space-y-4">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="material-icons text-gray-400">fact_check</span>
+              <h3 className="font-semibold text-gray-950 text-sm uppercase tracking-wider">
+                Payment Verification
+              </h3>
+            </div>
+            <ReprocessButton bookingId={booking.id} />
+          </div>
+
+          {!verification ? (
+            <div className="text-sm text-gray-500 py-2">
+              No verification attempts recorded. Click the button above to run verification.
+            </div>
+          ) : (
+            <div className="space-y-4 text-sm">
+              {/* Status Badge & Time */}
+              <div className="flex flex-wrap items-center gap-3">
+                {verification.verification_status === 'processing' && (
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 animate-pulse">
+                    <span className="material-icons text-xs animate-spin">sync</span>
+                    Processing OCR...
+                  </span>
+                )}
+                {verification.verification_status === 'verified' && (
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                    <span className="material-icons text-xs">check_circle</span>
+                    ✅ Payment Verified
+                  </span>
+                )}
+                {verification.verification_status === 'failed' && (
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                    <span className="material-icons text-xs">error</span>
+                    ❌ Verification Failed
+                  </span>
+                )}
+                {verification.verification_status === 'manual_review' && (
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+                    <span className="material-icons text-xs">warning</span>
+                    ⚠ Manual Review Required
+                  </span>
+                )}
+
+                <span className="text-xs text-gray-400">
+                  Last attempt: {new Date(verification.created_at).toLocaleString('en-PH')}
+                </span>
+
+                {verification.retry_count > 0 && (
+                  <span className="text-xs bg-gray-50 px-2 py-0.5 rounded border border-gray-150 text-gray-500">
+                    Retries: {verification.retry_count}
+                  </span>
+                )}
+              </div>
+
+              {/* Error Reason alert */}
+              {verification.verification_reason && (
+                <div className="bg-red-50/50 border border-red-100 rounded-lg p-3 text-red-800 text-xs flex gap-2">
+                  <span className="material-icons text-sm mt-0.5 text-red-600">info_outline</span>
+                  <div>
+                    <span className="font-semibold block mb-0.5">Reason:</span>
+                    {verification.verification_reason}
+                  </div>
+                </div>
+              )}
+
+              {/* Extracted Payment Details */}
+              {verification.provider && verification.provider !== 'Unknown' && (
+                <div className="border border-gray-100 rounded-xl p-4 bg-gray-50/50 space-y-3">
+                  <h4 className="font-semibold text-gray-700 text-xs uppercase tracking-wider border-b border-gray-100 pb-1.5">
+                    Extracted Data ({verification.provider})
+                  </h4>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-gray-400 block">Extracted Amount</span>
+                      <span className="font-semibold text-gray-900">
+                        {verification.amount !== null ? formatCurrency(verification.amount) : 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block">Expected Amount</span>
+                      <span className="font-semibold text-primary">
+                        {formatCurrency(booking.amount_due)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block">Reference Number</span>
+                      <span className="font-mono font-bold text-gray-800">
+                        {verification.parsed_payment?.reference_number || 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400 block">Transaction Date</span>
+                      <span>
+                        {verification.transaction_datetime
+                          ? new Date(verification.transaction_datetime).toLocaleString('en-PH')
+                          : 'N/A'}
+                      </span>
+                    </div>
+                    {verification.sender_name && (
+                      <div>
+                        <span className="text-gray-400 block">Sender Name</span>
+                        <span className="text-gray-800">{verification.sender_name}</span>
+                      </div>
+                    )}
+                    {verification.sender_number && (
+                      <div>
+                        <span className="text-gray-400 block">Sender Number</span>
+                        <span className="text-gray-800">{verification.sender_number}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Confidence scores */}
+              {(verification.ocr_confidence !== null || verification.parser_confidence !== null) && (
+                <div className="grid grid-cols-2 gap-3 text-xs border border-gray-100 rounded-xl p-4 bg-gray-50/50">
+                  {verification.ocr_confidence !== null && (
+                    <div>
+                      <span className="text-gray-400 block">OCR Confidence</span>
+                      <span className="font-medium text-gray-800">
+                        {(Number(verification.ocr_confidence) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  )}
+                  {verification.parser_confidence !== null && (
+                    <div>
+                      <span className="text-gray-400 block">Parser Confidence</span>
+                      <span className="font-medium text-gray-800">
+                        {(Number(verification.parser_confidence) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  )}
+                  <div className="col-span-2 text-[10px] text-gray-400 border-t border-gray-100 pt-2 flex justify-between">
+                    <span>OCR Version: {verification.ocr_service_version || 'N/A'}</span>
+                    <span>Parser Version: {verification.parser_version || 'N/A'}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Actions */}
       {booking.status === 'pending' && (

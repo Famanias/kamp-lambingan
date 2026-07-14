@@ -118,7 +118,7 @@ export interface Booking {
   created_at: string;
   updated_at: string;
   payment_type: 'full' | 'downpayment' | null;
-  amount_due: string | null;
+  amount_due: number | string | null;
   status_reason: string | null;
 }
 

@@ -1,6 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { uploadReceipt } from '@/actions/bookings';
 import { getServiceClient } from '@/lib/supabase/server';
+import { after } from 'next/server';
+import { verifyPayment } from '@/actions/payment-verification';
 
 export async function POST(req: Request) {
   try {
@@ -39,6 +41,15 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+
+    // Trigger background payment verification (non-blocking)
+    after(async () => {
+      try {
+        await verifyPayment(bookingId);
+      } catch (err) {
+        console.error('[API booking/upload-receipt] Background verification failed:', err);
+      }
+    });
 
     return NextResponse.json({
       success: true,
