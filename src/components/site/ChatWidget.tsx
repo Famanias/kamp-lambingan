@@ -40,16 +40,16 @@ function hasToolCall(message: UIMessage, toolName: string): boolean {
 
 function renderInlineFormatting(text: string): React.ReactNode[] {
   const boldParts = text.split('**');
-  
+
   return boldParts.map((boldPart, boldIdx) => {
     const isBold = boldIdx % 2 === 1;
     const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
     let match;
     let lastIndex = 0;
     const parts: React.ReactNode[] = [];
-    
+
     linkRegex.lastIndex = 0;
-    
+
     while ((match = linkRegex.exec(boldPart)) !== null) {
       const matchIndex = match.index;
       if (matchIndex > lastIndex) {
@@ -58,11 +58,11 @@ function renderInlineFormatting(text: string): React.ReactNode[] {
       const linkText = match[1];
       const linkUrl = match[2];
       parts.push(
-        <a 
-          key={matchIndex} 
-          href={linkUrl} 
-          target="_blank" 
-          rel="noopener noreferrer" 
+        <a
+          key={matchIndex}
+          href={linkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
           className="underline text-emerald-600 hover:text-emerald-700 font-medium"
         >
           {linkText}
@@ -70,11 +70,11 @@ function renderInlineFormatting(text: string): React.ReactNode[] {
       );
       lastIndex = linkRegex.lastIndex;
     }
-    
+
     if (lastIndex < boldPart.length) {
       parts.push(boldPart.substring(lastIndex));
     }
-    
+
     if (isBold) {
       return <strong key={boldIdx} className="font-bold">{parts}</strong>;
     }
@@ -214,7 +214,7 @@ function PaymentInstructionCard({
       <p className="font-semibold text-emerald-800 text-sm flex items-center gap-1.5 font-bold">
         <span className="material-icons text-base">payments</span> GCash Payment Instructions
       </p>
-      
+
       <p className="leading-relaxed text-gray-700">{instructions.message}</p>
 
       <div className="bg-white rounded-xl p-3 border border-emerald-100 space-y-2">
@@ -745,7 +745,7 @@ export default function ChatWidget({ content }: { content?: any }) {
     payment_type: 'downpayment' as 'downpayment' | 'full',
   });
   const [verificationSessionId, setVerificationSessionId] = useState('');
-  const [bookingResult, setBookingResult] = useState<{ reference: string; amount_due: string; booking_id: string } | null>(null);
+  const [bookingResult, setBookingResult] = useState<{ bookingId?: string; bookingReference?: string; reference?: string; booking_id?: string; amount_due?: string; checkoutUrl?: string; expiresAt?: string; error?: string } | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
   const [cardError, setCardError] = useState<string | null>(null);
   const [cardLoading, setCardLoading] = useState(false);
@@ -829,6 +829,28 @@ export default function ChatWidget({ content }: { content?: any }) {
     }
   }, [messages, activeBookingStep]);
 
+  // Poll for payment success
+  useEffect(() => {
+    if (activeBookingStep !== 'payment' || !bookingResult?.bookingId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/booking/status?id=${bookingResult.bookingId}`);
+        const data = await res.json();
+        if (data.status === 'confirmed') {
+          clearInterval(interval);
+          updateBookingStep('none');
+          const ref = bookingResult.bookingReference || bookingResult.reference;
+          sendMessage({ text: `My payment was successful. Here is my reference: ${ref}. Please confirm my booking.` });
+        }
+      } catch (err) {
+        // ignore polling errors
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [activeBookingStep, bookingResult]);
+
   const packagesList = useMemo(() => {
     const pkgs = content?.packages || [
       { name: 'Weekday Escape', price: '₱3,500' },
@@ -857,7 +879,7 @@ export default function ChatWidget({ content }: { content?: any }) {
       setCardLoading(false);
       return;
     }
-    
+
     // Validate guest capacity
     const guestCount = Number(bookingDetails.pax);
     if (isNaN(guestCount) || guestCount < 1) {
@@ -877,12 +899,12 @@ export default function ChatWidget({ content }: { content?: any }) {
       setCardLoading(false);
       return;
     }
-    
+
     const checkInDate = new Date(bookingDetails.check_in + 'T00:00:00');
     const checkOutDate = new Date(bookingDetails.check_out + 'T00:00:00');
     const diffTime = checkOutDate.getTime() - checkInDate.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays <= 0) {
       setCardError('Check-out must be after check-in.');
       setCardLoading(false);
@@ -1091,7 +1113,7 @@ export default function ChatWidget({ content }: { content?: any }) {
     } catch {
       // sessionStorage unavailable (e.g. private browsing quota exceeded)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const isLoading = status === 'submitted' || status === 'streaming';
@@ -1144,10 +1166,10 @@ export default function ChatWidget({ content }: { content?: any }) {
     // Client-side fail-safe intent detection to show form immediately
     const lowerText = text.toLowerCase();
     if (
-      (lowerText.includes('reservation') || 
-       lowerText.includes('book') || 
-       lowerText.includes('reserve') ||
-       lowerText.includes('making a booking')) &&
+      (lowerText.includes('reservation') ||
+        lowerText.includes('book') ||
+        lowerText.includes('reserve') ||
+        lowerText.includes('making a booking')) &&
       activeBookingStep === 'none'
     ) {
       updateBookingStep('form');
@@ -1160,10 +1182,10 @@ export default function ChatWidget({ content }: { content?: any }) {
     // Client-side fail-safe intent detection to show form immediately
     const lowerText = question.toLowerCase();
     if (
-      (lowerText.includes('reservation') || 
-       lowerText.includes('book') || 
-       lowerText.includes('reserve') ||
-       lowerText.includes('making a booking')) &&
+      (lowerText.includes('reservation') ||
+        lowerText.includes('book') ||
+        lowerText.includes('reserve') ||
+        lowerText.includes('making a booking')) &&
       activeBookingStep === 'none'
     ) {
       updateBookingStep('form');
@@ -1214,12 +1236,12 @@ export default function ChatWidget({ content }: { content?: any }) {
 
               const bookingToolPart = m.role === 'assistant'
                 ? m.parts.find(
-                    (p) =>
-                      p.type === 'dynamic-tool' &&
-                      ((p as { type: string; toolName?: string }).toolName === 'completeBooking' ||
-                       (p as { type: string; toolName?: string }).toolName === 'createBooking') &&
-                      (p as { state: string }).state === 'output-available'
-                  )
+                  (p) =>
+                    p.type === 'dynamic-tool' &&
+                    ((p as { type: string; toolName?: string }).toolName === 'completeBooking' ||
+                      (p as { type: string; toolName?: string }).toolName === 'createBooking') &&
+                    (p as { state: string }).state === 'output-available'
+                )
                 : undefined;
 
               const bookingResult =
@@ -1235,11 +1257,10 @@ export default function ChatWidget({ content }: { content?: any }) {
                   <div className={`${m.role === 'user' ? 'max-w-[85%]' : 'w-full'}`}>
                     {text && (
                       <div
-                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                          m.role === 'user'
+                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${m.role === 'user'
                             ? 'bg-primary text-white rounded-br-sm whitespace-pre-wrap'
                             : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                        }`}
+                          }`}
                       >
                         {m.role === 'user' ? text : parseMarkdown(text)}
                       </div>
@@ -1265,6 +1286,17 @@ export default function ChatWidget({ content }: { content?: any }) {
               );
             })}
 
+            {activeBookingStep === 'form' && (
+              <BookingFormCard
+                details={bookingDetails}
+                onChange={handleCardFieldChange}
+                onSubmit={handleFormSubmit}
+                loading={cardLoading}
+                error={cardError}
+                packages={packagesList}
+              />
+            )}
+
             {activeBookingStep === 'verification' && (
               <VerificationCard
                 email={bookingDetails.guest_email}
@@ -1272,10 +1304,21 @@ export default function ChatWidget({ content }: { content?: any }) {
                 onChangeCode={setVerificationCode}
                 onSubmit={handleVerifySubmit}
                 onResend={handleResendCode}
-                onBack={() => updateBookingStep('none')}
+                onBack={() => updateBookingStep('form')}
                 loading={cardLoading}
                 resendLoading={resendLoading}
                 resendMessage={resendMessage}
+                error={cardError}
+              />
+            )}
+
+            {activeBookingStep === 'summary' && (
+              <BookingSummaryCard
+                details={bookingDetails}
+                packages={packagesList}
+                onSubmit={handleConfirmBooking}
+                onBack={() => updateBookingStep('verification')}
+                loading={cardLoading}
                 error={cardError}
               />
             )}
@@ -1284,7 +1327,7 @@ export default function ChatWidget({ content }: { content?: any }) {
               <div className="space-y-2 mt-2">
                 <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs space-y-3 shadow-sm text-gray-800 text-center">
                   <p className="font-semibold text-emerald-800 text-sm">Booking Reserved!</p>
-                  
+
                   {bookingResult && (
                     <div className="bg-white/50 border border-emerald-100 rounded-xl p-3 text-left space-y-1 my-2">
                       <div className="flex justify-between">
@@ -1294,14 +1337,14 @@ export default function ChatWidget({ content }: { content?: any }) {
                       <div className="flex justify-between">
                         <span className="text-gray-500">Expires:</span>
                         <span className="font-medium text-red-600">
-                          {bookingResult.expiresAt ? new Date(bookingResult.expiresAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '30 mins'}
+                          {bookingResult.expiresAt ? new Date(bookingResult.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '30 mins'}
                         </span>
                       </div>
                     </div>
                   )}
-                  
+
                   <p className="text-gray-600">Click below to securely complete your payment via Stripe.</p>
-                  
+
                   <a
                     href={sessionStorage.getItem('kl_checkout_url') || '#'}
                     target="_blank"

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/supabase/server';
+import { getContent } from '@/actions/content';
 
 export async function POST(req: Request) {
   try {
@@ -28,7 +29,29 @@ export async function POST(req: Request) {
 
     const payload = sessionData.booking_session;
 
-    // 2. Reserve Slot via Supabase RPC
+    // 2. Fetch site content early to calculate price
+    const siteContent = await getContent();
+    const packageConfig = siteContent.packages.find(
+      (p) => p.name === payload.package_name
+    );
+
+    const baseUrl = packageConfig?.stripePaymentLink;
+    if (!baseUrl) {
+      console.error('[API booking/checkout] Missing Stripe Payment Link for package:', payload.package_name);
+      return NextResponse.json({ error: 'Checkout link is not configured for this package.' }, { status: 500 });
+    }
+
+    const rawPrice = packageConfig?.price as string | number | undefined;
+    const priceNum = rawPrice
+      ? (typeof rawPrice === 'number' ? rawPrice : parseInt(rawPrice.replace(/[^\d]/g, ''), 10) || 0)
+      : 0;
+    
+    const amountDue = payload.payment_type === 'full' ? priceNum : Math.ceil(priceNum / 2);
+    
+    // Generate a unique 6-character reference (e.g. KL-X7B9TQ)
+    const reference = 'KL-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    // 3. Reserve Slot via Supabase RPC
     const { data: bookingData, error: rpcError } = await supabase.rpc('create_pending_booking', {
       p_guest_name: payload.guest_name,
       p_guest_email: payload.guest_email,
@@ -38,7 +61,9 @@ export async function POST(req: Request) {
       p_check_out: payload.check_out,
       p_pax: payload.pax,
       p_payment_type: payload.payment_type,
-      p_notes: payload.notes || null
+      p_notes: payload.notes || null,
+      p_amount_due: amountDue.toString(),
+      p_reference: reference
     });
 
     if (rpcError || !bookingData) {
@@ -46,38 +71,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to reserve booking slot. The dates might no longer be available.' }, { status: 400 });
     }
 
-    // The RPC should return the booking ID, reference, and expiresAt.
-    const { id: bookingId, reference: bookingReference, expires_at: expiresAt } = bookingData;
+    // The RPC should return the booking ID.
+    // Since we generate the reference here, we can just use it directly!
+    const bookingId = bookingData.id || bookingData;
 
-    // 3. Forward to n8n to generate Stripe Checkout URL
-    const n8nUrl = process.env.N8N_WEBHOOK_URL;
-    if (!n8nUrl) {
-      return NextResponse.json({ error: 'Booking system is currently offline (Webhook missing).' }, { status: 503 });
-    }
-
-    // Pass the payload AND the new booking identifiers to n8n
-    const n8nPayload = { ...payload, bookingId, bookingReference, expiresAt };
-    const res = await fetch(n8nUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(n8nPayload)
-    });
-
-    if (!res.ok) {
-      // Optionally clean up the pending booking if n8n totally fails to respond
-      console.error('[API booking/checkout] n8n failed. Webhook returned:', res.statusText);
-      return NextResponse.json({ error: 'Failed to generate checkout link.' }, { status: 500 });
-    }
-
-    const n8nData = await res.json();
+    // 4. Generate Stripe Payment Link URL
+    const checkoutUrl = `${baseUrl}?client_reference_id=${bookingId}&prefilled_email=${encodeURIComponent(payload.guest_email)}`;
     
     // 4. Return full payload to frontend
     return NextResponse.json({ 
       success: true,
       bookingId,
-      bookingReference,
-      checkoutUrl: n8nData.checkoutUrl,
-      expiresAt,
+      bookingReference: reference,
+      checkoutUrl,
       status: 'awaiting_payment'
     });
 

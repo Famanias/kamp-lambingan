@@ -24,6 +24,7 @@ export interface Package {
   capacity: number;
   maxStayDays: number;
   allowsMultiDay?: boolean;
+  stripePaymentLink?: string;
 }
 
 export interface FaqItem {
