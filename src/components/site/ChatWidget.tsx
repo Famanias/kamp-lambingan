@@ -818,7 +818,6 @@ export default function ChatWidget({ content }: { content?: any }) {
     transport
   });
 
-  // Watch for showBookingForm tool call in messages
   useEffect(() => {
     if (activeBookingStep !== 'none') return;
     const hasShowForm = messages.some((m) => {
@@ -829,7 +828,6 @@ export default function ChatWidget({ content }: { content?: any }) {
       updateBookingStep('form');
     }
   }, [messages, activeBookingStep]);
-
 
   const packagesList = useMemo(() => {
     const pkgs = content?.packages || [
@@ -1009,7 +1007,7 @@ export default function ChatWidget({ content }: { content?: any }) {
     setCardLoading(true);
 
     try {
-      const res = await fetch('/api/booking/complete', {
+      const res = await fetch('/api/booking/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1026,10 +1024,10 @@ export default function ChatWidget({ content }: { content?: any }) {
 
       setBookingResult(data);
       sessionStorage.setItem('kl_booking_result', JSON.stringify(data));
+      if (data.checkoutUrl) {
+        sessionStorage.setItem('kl_checkout_url', data.checkoutUrl);
+      }
       updateBookingStep('payment');
-
-      // Programmatic user message to notify AI and trigger summary response
-      sendMessage({ text: `I have confirmed my booking. My booking reference is ${data.reference}.` });
     } catch (err) {
       setCardError('Failed to complete booking.');
     } finally {
@@ -1267,18 +1265,6 @@ export default function ChatWidget({ content }: { content?: any }) {
               );
             })}
 
-            {/* Render form-driven booking cards based on active step */}
-            {activeBookingStep === 'form' && (
-              <BookingFormCard
-                details={bookingDetails}
-                onChange={handleCardFieldChange}
-                onSubmit={handleFormSubmit}
-                loading={cardLoading}
-                error={cardError}
-                packages={packagesList}
-              />
-            )}
-
             {activeBookingStep === 'verification' && (
               <VerificationCard
                 email={bookingDetails.guest_email}
@@ -1286,7 +1272,7 @@ export default function ChatWidget({ content }: { content?: any }) {
                 onChangeCode={setVerificationCode}
                 onSubmit={handleVerifySubmit}
                 onResend={handleResendCode}
-                onBack={() => updateBookingStep('form')}
+                onBack={() => updateBookingStep('none')}
                 loading={cardLoading}
                 resendLoading={resendLoading}
                 resendMessage={resendMessage}
@@ -1294,33 +1280,42 @@ export default function ChatWidget({ content }: { content?: any }) {
               />
             )}
 
-            {activeBookingStep === 'summary' && (
-              <BookingSummaryCard
-                details={bookingDetails}
-                packages={packagesList}
-                onSubmit={handleConfirmBooking}
-                onBack={() => updateBookingStep('verification')}
-                loading={cardLoading}
-                error={cardError}
-              />
-            )}
-
             {activeBookingStep === 'payment' && (
-              <div className="space-y-2">
-                <PaymentInstructionCard
-                  instructions={{
-                    message: "Scan the GCash QR code to pay, then upload the receipt image to confirm your booking request.",
-                    reference: bookingResult?.reference,
-                    booking_id: bookingResult?.booking_id,
-                    amount_due: bookingResult?.amount_due
-                  }}
-                  content={content}
-                />
+              <div className="space-y-2 mt-2">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs space-y-3 shadow-sm text-gray-800 text-center">
+                  <p className="font-semibold text-emerald-800 text-sm">Booking Reserved!</p>
+                  
+                  {bookingResult && (
+                    <div className="bg-white/50 border border-emerald-100 rounded-xl p-3 text-left space-y-1 my-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Reference:</span>
+                        <span className="font-mono font-medium">{bookingResult.bookingReference || bookingResult.reference}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Expires:</span>
+                        <span className="font-medium text-red-600">
+                          {bookingResult.expiresAt ? new Date(bookingResult.expiresAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '30 mins'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <p className="text-gray-600">Click below to securely complete your payment via Stripe.</p>
+                  
+                  <a
+                    href={sessionStorage.getItem('kl_checkout_url') || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full bg-primary hover:bg-primary/95 text-white text-xs font-semibold py-3 rounded-xl transition-all shadow-sm"
+                  >
+                    Pay Now
+                  </a>
+                </div>
                 <button
                   onClick={handleReset}
                   className="w-full bg-white hover:bg-gray-100 border border-gray-200 text-gray-500 hover:text-gray-700 text-xs font-semibold py-2 rounded-xl transition-all shadow-sm"
                 >
-                  Book Another Reservation
+                  Start a New Chat
                 </button>
               </div>
             )}

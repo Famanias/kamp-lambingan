@@ -1,86 +1,50 @@
-# Walkthrough: Metadata-Driven Package System
+# Booking System Migration Walkthrough (Revised)
 
-I have successfully converted the booking and package systems of Kamp Lambingan to be fully **metadata-driven**. The behavior of guest counts and check-out selections is now controlled entirely by package configurations set in the Admin Panel rather than hardcoded rules or package names.
+The codebase has been successfully migrated to support the new n8n and Stripe-driven booking architecture, while maintaining the familiar, token-efficient React form on the frontend.
 
----
+## 1. Database & State Machine Upgrades (Supabase)
 
-## What Has Been Built
+We started by creating a robust set of Remote Procedure Calls (RPCs) to act as the single source of truth for business rules, allowing n8n to safely orchestrate without knowing SQL.
 
-### 1. Extended Package Model & Defaults
-- **Types Update**: Extended the `Package` interface in [types.ts](file:///d:/repos/kamp-lambingan/src/lib/types.ts) to require `price: number`, `description: string`, `capacity: number` (Maximum Guests), and `maxStayDays: number` (Maximum Stay (Days)).
-- **Default Package Setup**: Configured standard options in [defaults.ts](file:///d:/repos/kamp-lambingan/src/lib/defaults.ts) to use these new fields explicitly (Weekday and Weekend packages are set to `maxStayDays: 1`, Group Retreat set to `maxStayDays: 3`).
+### What Changed?
+- **State Machine Constraints**: We updated the `bookings.status` check constraint to support the new, fine-grained state machine: `draft`, `awaiting_payment`, `paid`, `confirmed`, `checked_in`, `completed`, `expired`, and `cancelled`.
+- **Global Settings**: Injected `booking_hold_minutes` (default 30) into the `app_settings` table to drive your expiration cron jobs.
+- **New RPCs**:
+  - `check_booking_availability(check_in, check_out, pax)`: Iterates through dates, respects `date_capacities`, and returns `{ available: true/false }`.
+  - `create_pending_booking(...)`: Locks the table and inserts a new booking securely into the `awaiting_payment` state.
+  - `confirm_booking(booking_id)`, `expire_booking(booking_id)`, `cancel_booking(booking_id)`: Secure mutation functions for state transitions.
 
-### 2. Auto-Migration & Normalization
-- **Legacy Fallbacks**: Updated `getContent()` in [content.ts](file:///d:/repos/kamp-lambingan/src/actions/content.ts) to intercept legay package data loaded from the DB, clean up price string representations into numbers, and assign sensible defaults for capacity and stay duration. This keeps old database entries backwards-compatible.
-- **Shared Matching Utility**: Modified `getSelectedPackage()` in [package-helper.ts](file:///d:/repos/kamp-lambingan/src/lib/package-helper.ts) to fetch stay limits and guest capacities directly from the newly created metadata properties.
+> [!TIP]
+> n8n simply needs to execute these RPCs using the Supabase node. No raw SQL logic is needed in the workflow.
 
-### 3. Admin Panel UI Updates
-- **Inputs added**: Added input controls to the Packages editor under the **Admin → Content** tab in [ContentEditor.tsx](file:///d:/repos/kamp-lambingan/src/components/admin/ContentEditor.tsx):
-  - **Maximum Guests**: Numeric required input, minimum value `1`.
-  - **Maximum Stay (Days)**: Numeric required input, minimum value `1`.
-  - **Price (₱)**: Converted to a numeric required input.
-  - **Description**: Marked as a required textarea.
-- **Package Addition**: Configured the "Add Package" action to default new packages to `maxStayDays: 1` and `capacity: 2`.
+## 2. Token-Efficient AI & Hybrid UI
 
-### 4. Parity Booking Form Enhancements
-- **Dynamic Check-out Logic**: Updated the Chat Widget Booking Wizard [ChatWidget.tsx](file:///d:/repos/kamp-lambingan/src/components/site/ChatWidget.tsx) and the Standalone Page Form [BookForm.tsx](file:///d:/repos/kamp-lambingan/src/components/site/BookForm.tsx):
-  - **`maxStayDays === 1`**: Check-out input is replaced by a read-only date view automatically locked to `Check-in + 1 day`. Displays helper message: `"This package includes a 1-day stay. The check-out date is calculated automatically."`
-  - **`maxStayDays > 1`**: Check-out input is editable. Displays helper message: `"Maximum stay: X days"`. Prevents submission if the selected range exceeds the maximum allowed stay duration.
-- **Dynamic Pax Clamping**: Enforces guest limits dynamically up to `package.capacity`, preventing form submission if exceeded. Displays: `"Maximum guests allowed: X"` helper labels.
+Instead of using the AI to conversationally collect details (which burns tokens), the AI will act strictly as a receptionist, immediately calling the `showBookingForm` tool.
 
-### 5. Multi-Layered Backend API Securing
-- Enforced identical checks on the backend (capacity checking, stay duration matching stay limits) in:
-  - `createBooking` server action inside [bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts).
-  - API start session endpoint [route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/start/route.ts).
-  - API complete checkout endpoint [route.ts](file:///d:/repos/kamp-lambingan/src/app/api/booking/complete/route.ts).
+### What Changed?
+- **AI Knowledge Base**: The AI system prompt has been reverted to strictly call `showBookingForm` and offload collection to the React UI.
+- **Form UI Flow**: The frontend `ChatWidget` continues to manage the multi-step `form` -> `verification` -> `summary` state natively, keeping the experience exactly as it was.
+- **Stripe Integration**: Upon completing the summary step, the form drops the user into the new `payment` step, rendering a native **Pay Now** button linking to the Stripe session (replacing the old GCash image upload).
 
-### 6. AI Agent Synchronization
-- Updated AI instruction templates in [knowledge-base.ts](file:///d:/repos/kamp-lambingan/src/lib/knowledge-base.ts) so the bot dynamically understands configuration limits and ceases explaining name-based checks.
+## 3. Next.js APIs as n8n Proxies
 
----
+To make this hybrid flow work without rewriting the frontend form state machine, the Next.js `/api/booking` routes were transformed into secure proxies.
 
-## Verification Results
+### What Changed?
+- **`/api/booking/check`**: No longer does manual date math. It simply calls the `check_booking_availability` RPC and returns the result.
+- **`/api/booking/start` & `/api/booking/verify`**: Kept intact. These still securely generate and verify the OTP and store the initial booking payload session.
+- **`/api/booking/complete`**: Completely rewritten. Instead of inserting into Supabase directly, this endpoint validates the OTP session and fires a POST request to your `N8N_WEBHOOK_URL` containing the payload. It waits for n8n to return the `{ checkoutUrl }` and sends it back to the frontend.
 
-### Automated Verification
-Next.js production build (`npm run build`) runs and compiles successfully with zero TypeScript or path errors:
-```text
-▲ Next.js 16.1.6 (Turbopack)
-- Environments: .env
-- Experiments (use with caution):
-  · serverActions
+## 4. Legacy API Deprecation
 
-  Creating an optimized production build ...
-✓ Compiled successfully in 5.7s
-  Running TypeScript ...
-  Collecting page data using 11 workers ...
-  Generating static pages using 11 workers (13/13) in 583.6ms
-  Finalizing page optimization ...
-```
-All route endpoints and client components are verified to compile.
+- `/api/booking/upload-receipt` now returns a `410 Gone` status indicating it is deprecated, as Stripe handles all payments now.
 
----
-
-## Rejection Status Tracking & Display (New Update)
-
-I have implemented tracking of the payment rejection reason in the database to display a detailed **`rejected`** status and custom reason message to guests and admins instead of generic `cancelled` statuses.
-
-### Changes Made
-
-1. **Database Schema updates**:
-   - Added the `status_reason` column to the schema definitions in [bookings-table.sql](file:///d:/repos/kamp-lambingan/bookings-table.sql) and [bookings-capacity.sql](file:///d:/repos/kamp-lambingan/bookings-capacity.sql):
-     `ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS status_reason text;`
-2. **TypeScript & Model Integration**:
-   - Added `status_reason: string | null` to the `Booking` interface in [types.ts](file:///d:/repos/kamp-lambingan/src/lib/types.ts).
-   - Added `status_reason?: string | null` to the `BookingSummary` type in [MyBookingsClient.tsx](file:///d:/repos/kamp-lambingan/src/app/my-bookings/MyBookingsClient.tsx).
-3. **Server Actions Logic**:
-   - Modified `updateBookingStatus` inside [bookings.ts](file:///d:/repos/kamp-lambingan/src/actions/bookings.ts) to write the `status_reason: reason` value to the database when updating status.
-   - Updated `getBookingByReference` to explicitly retrieve the `status_reason` column when guests look up their reference code.
-4. **Guest Lookup Pages**:
-   - Modified [MyBookingsClient.tsx](file:///d:/repos/kamp-lambingan/src/app/my-bookings/MyBookingsClient.tsx) to check if a booking is cancelled with a `payment_rejected` reason. It dynamically renders the status as **`rejected`** with a red badge, displaying the rejection alert message:
-     `Booking rejected due to inauthentic payment image given.`
-   - Updated [page.tsx](file:///d:/repos/kamp-lambingan/src/app/booking/[id]/page.tsx) to dynamically adjust headings, icons, status badges, and instructions for all booking states (`pending`, `confirmed`, `cancelled`, `rejected`, `expired`). Under the rejected state, it displays the message:
-     `booking rejected due to inauthentic payment image given. If you believe this is a mistake, please make a new booking with a valid receipt, or reach out to us.`
-5. **Admin Dashboard Views**:
-   - Updated [BookingsTable.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/BookingsTable.tsx) to map and show `rejected` in red for rejected bookings in both the table rows and the details dialog popup.
-   - Updated [page.tsx](file:///d:/repos/kamp-lambingan/src/app/admin/bookings/[id]/page.tsx) to display the `rejected` status in the details card view.
-
+> [!IMPORTANT]
+> **Action Required: n8n Workflow Construction**
+>
+> The Next.js API expects a synchronous response from n8n containing the Stripe URL. 
+> 
+> 1. Set up a Webhook node in n8n (POST request, Respond: "Using Respond to Webhook Node").
+> 2. Add the URL to your `.env` file as `N8N_WEBHOOK_URL`.
+> 3. Build the n8n flow to sequentially call: `check_booking_availability` -> `create_pending_booking` -> Create Stripe Checkout Session.
+> 4. Use a **Respond to Webhook** node in n8n to return `{ "success": true, "checkoutUrl": "https://stripe...", "bookingId": "KL-..." }` back to Next.js.
