@@ -1,110 +1,56 @@
-﻿# Kamp Lambingan — Resort Website & CMS
+# 🌿 Kamp Lambingan: Next-Generation Resort Management System
 
-A full-stack resort landing page and content management system built for **Kamp Lambingan**, a riverside glamping resort in San Antonio, Zambales, Philippines.
+Welcome to the **Kamp Lambingan Booking & CMS Platform**—a fully automated, state-of-the-art software solution designed exclusively for modern glamping resorts and boutique hospitality businesses. 
 
-Built with **Next.js 16 (App Router)**, **Supabase**, **Tailwind CSS v4**, and **Vercel AI SDK + Groq**.
-
----
-
-## Features
-
-### Public Site
-- **Hero section** — full-screen banner with customizable headline, subtitle, and background image
-- **Features & Activities** — icon-driven highlights showcasing what the resort offers
-- **Packages & Pricing** — clear pricing cards with inclusions; supports featured package highlight
-- **Villa Gallery** — image carousel per villa with capacity and activity details
-- **Guest Reviews** — star-rated testimonials with tags
-- **FAQ** — accordion-style frequently asked questions
-- **Gallery** — responsive photo grid (6 images)
-- **Booking Form** — two-step form: guest details → GCash payment + receipt upload
-- **My Bookings** — guests look up their booking status by email
-- **AI Chat Assistant** — floating chat widget powered by Groq (llama-3.3-70b), trained on all resort content and strictly scoped to Kamp Lambingan questions only
-
-### Admin Panel (`/admin`)
-- **Bookings** — view, confirm, cancel, and archive guest bookings with reference numbers
-- **Content Editor** — live CMS with sections for:
-  - Hero, Contact, Features, Activities, Packages, Villas, Reviews, FAQ, Gallery, Footer, Payment
-- **Payment QR** — upload and update the GCash QR code shown on the booking form
-- **Image Uploads** — upload images directly to Supabase Storage (private bucket, signed URLs)
-
-### Booking Flow
-1. Guest fills in details and selects a package
-2. Chooses full payment or 50% downpayment
-3. Scans the GCash QR code and sends the exact amount
-4. Uploads a screenshot of the GCash receipt
-5. Admin verifies and confirms via text/call within 24 hours
+Say goodbye to manual tracking, endless customer inquiries, and clunky booking processes. This system provides a stunning frontend for your guests and a powerful, automated backend for you.
 
 ---
 
-## Tech Stack
+## 🚀 Why Choose This System?
 
-| Layer | Technology |
-|---|---|
-| Framework | Next.js 16 (App Router, Server Actions) |
-| Styling | Tailwind CSS v4 |
-| Database | Supabase (PostgreSQL + RLS) |
-| Storage | Supabase Storage (private `site-images`, public `receipts`) |
-| Auth | Supabase Auth (admin login) |
-| AI Chatbot | Vercel AI SDK v6 + Groq (`llama-3.3-70b-versatile`) |
-| Deployment | Vercel |
+### 🤖 24/7 AI Receptionist
+Never leave a guest waiting. Our integrated **AI Chat Assistant** (powered by Groq & LLaMA 3.3) is deeply integrated into your resort's knowledge base. It instantly answers questions about amenities, pricing, and rules, guiding guests straight to the booking page—even while you sleep.
 
----
+### ⚡ Fully Automated Booking & Payments
+We've built an enterprise-grade microservice architecture using **n8n, Stripe, and Supabase**:
+- **Frictionless Checkout**: Guests select their dates, pax, and package, then seamlessly pay via Stripe.
+- **Automated Emails**: The system automatically generates unique booking reference codes (e.g., `KL-X7B9TQ`) and sends beautifully formatted confirmation, failure, or expiration emails directly to the guest's inbox via the **Resend API**.
+- **Smart Calendar Cleanup**: Background tasks run automatically every 15 minutes to release abandoned checkout slots back to the public, ensuring your calendar is never artificially blocked.
 
-## Project Structure
+### 🎨 No-Code Content Management (CMS)
+You don't need a developer to update your website. The secure **Admin Dashboard** gives you complete control:
+- Instantly swap out hero images and gallery photos.
+- Update package pricing, inclusions, and Stripe payment links.
+- Modify FAQs, policies, and resort features on the fly.
 
-```
-src/
-├── app/
-│   ├── page.tsx                  # Public homepage
-│   ├── book/                     # Booking page
-│   ├── booking/[id]/             # Booking confirmation page
-│   ├── my-bookings/              # Guest booking lookup
-│   ├── admin/                    # Admin panel (auth-protected)
-│   │   ├── bookings/             # Manage bookings
-│   │   └── content/              # CMS editor
-│   └── api/
-│       ├── chat/route.ts         # AI chatbot endpoint (Groq)
-│       └── image/route.ts        # Signed URL proxy for private images
-├── components/
-│   ├── site/                     # Public-facing components
-│   └── admin/                    # Admin UI components
-├── actions/                      # Server Actions (auth, bookings, content)
-└── lib/
-    ├── types.ts                  # Shared TypeScript types
-    ├── defaults.ts               # Default site content
-    └── knowledge-base.ts         # AI chatbot system prompt builder
-```
+### 📊 Centralized Booking Management
+Manage all your reservations from one clean interface. View incoming bookings, search by reference codes, and easily track which guests are arriving next.
 
 ---
 
-## Local Development
+## 🌟 The Guest Experience
 
-### Prerequisites
-- Node.js 20+
-- A [Supabase](https://supabase.com) project
-- A [Groq](https://console.groq.com) API key (free)
+We believe booking a vacation should be as relaxing as the vacation itself. 
 
-### 1. Clone and install
-
-```bash
-git clone https://github.com/Famanias/kamp-lambingan.git
-cd kamp-lambingan
-npm install
-```
-
-### 2. Run the dev server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) for the public site.
-Open [http://localhost:3000/admin](http://localhost:3000/admin) for the admin panel.
+1. **Discover**: Guests browse a lightning-fast, mobile-responsive website showcasing beautiful villas, activities, and packages.
+2. **Engage**: They ask the AI widget specific questions like *"Do you allow pets?"* and get instant, accurate answers.
+3. **Book & Pay**: A smooth two-step checkout process securely handles their payment via Stripe.
+4. **Confirm**: Within seconds, they receive a branded email confirmation with their unique reference code.
 
 ---
 
-## Deployment
+## 🛠 Built for the Future
 
-Deploy to [Vercel](https://vercel.com) and add the same environment variables under **Project Settings → Environment Variables**.
+While you don't need to be technical to use it, the platform is built on the most cutting-edge, scalable technologies available today:
 
-The site content (hero, packages, FAQs, GCash QR, etc.) is fully managed through the admin CMS — no redeployment needed when content changes.
+- **Next.js 16 (App Router)** for lightning-fast frontend performance and SEO.
+- **Supabase (PostgreSQL)** for secure, real-time database management and image storage.
+- **n8n Automation Engine** acting as the "brain" connecting webhooks, databases, and emails.
+- **Stripe** for world-class payment processing.
+- **Resend** for reliable, developer-friendly email delivery.
+- **Vercel AI SDK + Groq** for blazing-fast, intelligent chatbot responses.
+
+---
+
+### Ready to transform your resort's booking experience?
+*(Add contact information or links to live demos here)*
