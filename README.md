@@ -1,56 +1,55 @@
 # 🌿 Kamp Lambingan: Next-Generation Resort Management System
 
-Welcome to the **Kamp Lambingan Booking & CMS Platform**—a fully automated, state-of-the-art software solution designed exclusively for modern glamping resorts and boutique hospitality businesses. 
+The **Kamp Lambingan Booking & CMS Platform** is a fully automated system designed exclusively for modern glamping resorts and boutique hospitality businesses. 
 
-Say goodbye to manual tracking, endless customer inquiries, and clunky booking processes. This system provides a stunning frontend for your guests and a powerful, automated backend for you.
+It eliminates manual tracking, repetitive customer inquiries, and clunky booking processes by providing a seamless frontend for guests and a powerful, automated backend for administrators.
 
 ---
 
-## 🚀 Why Choose This System?
+## 🚀 Key System Features
 
 ### 🤖 24/7 AI Receptionist
-Never leave a guest waiting. Our integrated **AI Chat Assistant** (powered by Groq & LLaMA 3.3) is deeply integrated into your resort's knowledge base. It instantly answers questions about amenities, pricing, and rules, guiding guests straight to the booking page—even while you sleep.
+The integrated **AI Chat Assistant** is deeply connected to the resort's knowledge base. It answers questions regarding amenities, pricing, and rules, guiding guests directly to the booking page at any time of day.
 
 ### ⚡ Fully Automated Booking & Payments
-We've built an enterprise-grade microservice architecture using **n8n, Stripe, and Supabase**:
-- **Frictionless Checkout**: Guests select their dates, pax, and package, then seamlessly pay via Stripe.
-- **Automated Emails**: The system automatically generates unique booking reference codes (e.g., `KL-X7B9TQ`) and sends beautifully formatted confirmation, failure, or expiration emails directly to the guest's inbox via the **Resend API**.
-- **Smart Calendar Cleanup**: Background tasks run automatically every 15 minutes to release abandoned checkout slots back to the public, ensuring your calendar is never artificially blocked.
+The platform utilizes an enterprise-grade microservice architecture powered by **n8n, Stripe, and Supabase**:
+- **Frictionless Checkout**: Guests select dates, party size, and packages, then securely process payments via Stripe.
+- **Automated Emails**: The system automatically generates unique booking reference codes and sends formatted confirmation, failure, or expiration emails directly to the guest via the **Resend API**.
+- **Smart Calendar Cleanup**: Background tasks run automatically every 45 minutes to release abandoned checkout slots back to the public, ensuring the calendar remains accurate.
 
 ### 🎨 No-Code Content Management (CMS)
-You don't need a developer to update your website. The secure **Admin Dashboard** gives you complete control:
-- Instantly swap out hero images and gallery photos.
-- Update package pricing, inclusions, and Stripe payment links.
-- Modify FAQs, policies, and resort features on the fly.
+The secure **Admin Dashboard** provides full administrative control without requiring technical expertise:
+- Instantly update hero images and gallery photos.
+- Modify package pricing, inclusions, and Stripe payment links.
+- Edit FAQs, policies, and resort features in real time.
 
 ### 📊 Centralized Booking Management
-Manage all your reservations from one clean interface. View incoming bookings, search by reference codes, and easily track which guests are arriving next.
+Administrators can manage all reservations from a single interface. The system allows users to view incoming bookings, search by reference codes, and track upcoming guest arrivals.
 
 ---
 
 ## 🌟 The Guest Experience
 
-We believe booking a vacation should be as relaxing as the vacation itself. 
+The platform prioritizes a frictionless user journey for all guests:
 
-1. **Discover**: Guests browse a lightning-fast, mobile-responsive website showcasing beautiful villas, activities, and packages.
-2. **Engage**: They ask the AI widget specific questions like *"Do you allow pets?"* and get instant, accurate answers.
-3. **Book & Pay**: A smooth two-step checkout process securely handles their payment via Stripe.
-4. **Confirm**: Within seconds, they receive a branded email confirmation with their unique reference code.
+1. **Discover**: Visitors browse a fast, mobile-responsive website showcasing villas, activities, and packages.
+2. **Engage**: Guests can ask the AI widget specific questions and receive immediate, accurate responses.
+3. **Book & Pay**: A streamlined two-step checkout process securely handles payments via Stripe.
+4. **Confirm**: Within seconds, guests receive a branded email confirmation containing a unique reference code.
 
 ---
 
-## 🛠 Built for the Future
+## 🛠 Technical Architecture
 
-While you don't need to be technical to use it, the platform is built on the most cutting-edge, scalable technologies available today:
+The platform is built on modern, scalable technologies to ensure high performance and reliability:
 
-- **Next.js 16 (App Router)** for lightning-fast frontend performance and SEO.
+- **Next.js 16 (App Router)** for optimized frontend performance and SEO.
 - **Supabase (PostgreSQL)** for secure, real-time database management and image storage.
-- **n8n Automation Engine** acting as the "brain" connecting webhooks, databases, and emails.
-- **Stripe** for world-class payment processing.
-- **Resend** for reliable, developer-friendly email delivery.
-- **Vercel AI SDK + Groq** for blazing-fast, intelligent chatbot responses.
+- **n8n Automation Engine** serving as the integration layer connecting webhooks, databases, and emails.
+- **Stripe** for secure payment processing.
+- **Resend** for reliable transactional email delivery.
+- **Vercel AI SDK + Groq** for intelligent, low-latency chatbot responses.
 
----
+## ⚠️ Disclaimer
 
-### Ready to transform your resort's booking experience?
-*(Add contact information or links to live demos here)*
+**Notice of Development Environment:** The Stripe payment gateway is currently configured in test mode. Please refrain from submitting live financial data or production credit card information. All transactions processed during this phase are simulations for validation purposes only.
