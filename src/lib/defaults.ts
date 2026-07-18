@@ -48,6 +48,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       features: ['Air conditioned room', 'River access & dipping pool', 'In-room amenities', 'Comprehensive concierge'],
       capacity: 2,
       maxStayDays: 1,
+      stripePaymentLink: '',
     },
     {
       label: 'Best Weekend',
@@ -59,6 +60,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       features: ['Air conditioned room', 'All inclusive activities', 'Riverside BBQ & cooking area', 'Bonfire setup', 'Complimentary meals (x2)', 'Customized room coordinator'],
       capacity: 2,
       maxStayDays: 1,
+      stripePaymentLink: '',
     },
     {
       label: 'Best for Groups',
@@ -69,6 +71,7 @@ export const DEFAULT_CONTENT: SiteContent = {
       features: ['2–3 days all connected', 'All inclusive activities', 'Private BBQ & cooking area', 'Guided tours', 'Bonfire setup', 'Dedicated room coordinator'],
       capacity: 20,
       maxStayDays: 3,
+      stripePaymentLink: '',
     },
   ],
   faqTitle: 'Frequently Asked Questions',

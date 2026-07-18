@@ -42,3 +42,11 @@ next-env.d.ts
 
 .vercel
 ROADMAP.md
+
+
+# n8n workflows
+/n8n-workflows/*
+
+#supabase sql files
+
+/supabase/*

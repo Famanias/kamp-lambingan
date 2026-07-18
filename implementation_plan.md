@@ -1,286 +1,57 @@
-AI Prompt: Implement n8n Integration for Kamp Lambingan (Foundation Only)
-Objective
+# n8n Modular Workflow Architecture Plan
 
-Implement the first production-ready iteration of n8n integration for the Kamp Lambingan Resort CMS.
+## 1. Goal
 
-Important: This is NOT a rewrite of the existing chatbot.
+Design and generate a production-ready, modular n8n project that acts as the orchestration layer for Kamp Lambingan's booking and payment systems. The workflows will be heavily decoupled using a microservices-style "Execute Workflow" architecture.
 
-The current chatbot already has:
+## 2. Clarification on `create_pending_booking`
 
-AI chatbot powered by Groq
-Knowledge base / RAG
-Intent detection
-Booking form
-Booking creation
-Email verification
-Booking confirmation emails
-Supabase backend
-Admin CMS
+In our previous discussion, we agreed to shift `create_pending_booking` to **Next.js** to guarantee the slot is locked before Stripe checkout creation, preventing ghost bookings if n8n crashes. 
 
-These features must continue to work exactly as they do today.
+Because Next.js now executes this RPC and sends the `booking_id` in the webhook payload, **n8n no longer needs to call `create_pending_booking`**. 
 
-The goal is to transform the existing system into an event-driven automation platform by introducing n8n as the automation orchestrator.
+I will adjust `kamp-sub-booking.json` to act as a general-purpose booking utility workflow (e.g., retrieving booking details if needed) rather than creating the booking, ensuring it aligns perfectly with your Next.js gateway design.
 
-Do NOT implement advanced enterprise features such as CRM integrations, loyalty systems, analytics dashboards, or marketing automations in this iteration.
+## 3. Workflow Dependency Diagram
 
-Architecture
+```mermaid
+graph TD
+    A[Next.js API] -->|POST Payload| B(kamp-master-booking-router)
+    B --> C(kamp-sub-stripe)
+    
+    D[Stripe Webhooks] -->|POST Events| E(kamp-sub-stripe-webhooks)
+    E --> F(kamp-sub-supabase)
+    E --> G(kamp-sub-email)
+    
+    H[Cron Trigger] -->|Every X mins| I(kamp-sub-cleanup)
+    I --> F
+    
+    style B fill:#f9f,stroke:#333,stroke-width:2px
+    style E fill:#f9f,stroke:#333,stroke-width:2px
+```
 
-The architecture should become:
+## 4. Workflows to Generate
 
-Guest
-    │
-    ▼
-Next.js Chat UI
-    │
-    ▼
-Existing Groq Chatbot
-    │
-Intent Detection
-    │
-Tool Selection
-    │
-    ▼
-Internal CMS APIs
-    │
-Business Logic
-    │
-Domain Event
-    │
-Automation Gateway
-    │
-    ▼
-n8n
+I will generate 6 importable JSON files (since `kamp-sub-booking` is mostly bypassed by Next.js, but I will include it as a read-only utility if you'd like, or we can omit it. I will provide it as requested but adapted).
 
-The chatbot must never communicate directly with n8n.
+1. **`kamp-sub-supabase.json`**: Contains a Switch node to route to different Supabase RPC executions (`confirm_booking`, `expire_booking`, `cancel_booking`).
+2. **`kamp-sub-email.json`**: Uses the Send Email node (SMTP) or an HTTP node (e.g., Resend/SendGrid) to fire templated emails based on status.
+3. **`kamp-sub-stripe.json`**: Makes an HTTP Request to the Stripe API (`/v1/checkout/sessions`) to generate the payment URL with the required metadata.
+4. **`kamp-sub-stripe-webhooks.json`**: Receives Stripe events. Uses a Switch node for `checkout.session.completed`, `checkout.session.expired`, and `payment_intent.payment_failed`. Calls `kamp-sub-supabase` and `kamp-sub-email`.
+5. **`kamp-sub-cleanup.json`**: A Cron node that triggers a Supabase RPC to clean up expired bookings.
+6. **`kamp-master-booking-router.json`**: The main webhook (`/booking-checkout`). Receives the Next.js payload, calls `kamp-sub-stripe` to get the URL, and responds synchronously using a "Respond to Webhook" node.
 
-Only the CMS communicates with n8n.
+## 5. Implementation Approach
 
-Scope
+I will create a new directory `n8n-workflows/` in your workspace and generate the 6 JSON files there.
 
-Only implement the following phases.
+**Crucial Note on n8n Imports**:
+When you use "Execute Workflow" nodes in n8n, they link to other workflows via an internal ID. Because these workflows don't exist in your instance yet, I will generate them with placeholder IDs (or use the "Call by Name" feature if available, but "Call by ID" is standard). After importing, you will need to manually open the "Execute Workflow" nodes and select the newly imported sub-workflows.
 
-Phase 1 — Domain Event System
+## User Review Required
 
-Introduce an internal domain event system.
+1. **Email Node**: Do you want the `kamp-sub-email` workflow to use standard SMTP, or an HTTP request to an API like Resend, SendGrid, or Postmark?
+2. **Supabase Node**: Should `kamp-sub-supabase` use the native n8n Supabase node, or generic HTTP Request nodes pointing to your Supabase REST API? (The generic HTTP node is sometimes preferred for RPCs as the native node can be finicky with custom RPCs).
+3. Do you approve of omitting `create_pending_booking` from n8n to honor our Next.js orchestration rule?
 
-Business actions should emit events such as:
-
-booking.created
-
-booking.confirmed
-
-booking.cancelled
-
-payment.started
-
-payment.completed
-
-payment.pending_review
-
-payment.failed
-
-chat.human_requested
-
-The chatbot is simply one producer of these events.
-
-The booking page and admin panel should also be capable of producing the same events.
-
-Do not tightly couple automations to the chatbot.
-
-Phase 2 — Automation Gateway
-
-Create a centralized automation layer.
-
-Example endpoint:
-
-POST /api/internal/automation
-
-Responsibilities:
-
-authenticate requests
-validate payload
-log automation requests
-forward events to n8n
-retry transient failures
-
-The CMS should never contain hardcoded n8n webhook URLs throughout the codebase.
-
-There should be one reusable automation gateway.
-
-Phase 3 — AI Tool Layer
-
-Introduce a server-side tool registry.
-
-Example tools:
-
-check_availability
-
-create_booking
-
-cancel_booking
-
-check_booking_status
-
-resend_confirmation
-
-contact_staff
-
-start_payment
-
-The chatbot only decides which tool to invoke.
-
-The chatbot must never know implementation details.
-
-The CMS executes the tool.
-
-If a tool requires automation, it emits a domain event.
-
-Phase 4 — Payment Integration Foundation
-
-Prepare the chatbot and automation architecture to support two payment methods.
-
-Manual GCash
-
-Booking
-
-↓
-
-Upload Receipt
-
-↓
-
-payment.pending_review
-
-↓
-
-Admin Review
-
-↓
-
-payment.completed
-
-Online Payment Gateway
-
-Booking
-
-↓
-
-PayMongo Checkout
-
-↓
-
-Webhook
-
-↓
-
-payment.completed
-
-Do NOT implement PayMongo in this task.
-
-Only design the architecture so that both payment methods share the same downstream automation flow.
-
-Phase 5 — Initial n8n Workflows
-
-Implement only these workflows.
-
-Booking Created
-
-Trigger:
-
-booking.created
-
-Actions:
-
-send booking confirmation email
-notify staff
-Booking Reminder
-
-Scheduled workflow.
-
-Find tomorrow's bookings.
-
-Send reminder email.
-
-Human Escalation
-
-Trigger:
-
-chat.human_requested
-
-Actions:
-
-notify administrator
-include conversation summary
-Resend Confirmation
-
-Trigger:
-
-resend_confirmation
-
-Actions:
-
-resend booking confirmation email
-Payment Completed
-
-Trigger:
-
-payment.completed
-
-Actions:
-
-confirm booking
-notify guest
-notify staff
-Implementation Requirements
-
-The implementation should:
-
-preserve the existing chatbot
-preserve the existing booking flow
-preserve the existing email verification flow
-preserve the existing booking confirmation emails
-
-Do NOT rewrite existing features unless necessary.
-
-Instead, extend them.
-
-Code Quality
-
-The implementation should follow these principles:
-
-event-driven architecture
-loose coupling
-reusable automation gateway
-dependency injection where appropriate
-centralized configuration
-strongly typed payloads
-no duplicated business logic
-production-ready error handling
-structured logging
-retry support for automation requests
-Deliverables
-
-Produce:
-
-Complete implementation plan
-File-by-file modification list
-Database changes (only if required)
-API changes
-New automation gateway
-Tool registry
-Event system
-n8n workflow definitions
-Environment variables
-Verification checklist
-Important Constraints
-
-Do NOT:
-
-rebuild the chatbot
-replace Groq
-move conversation handling into n8n
-duplicate booking logic
-duplicate email logic
-tightly couple business logic to n8n
-
-Treat n8n strictly as the automation orchestrator, while the CMS remains the source of truth for business logic and data. The final implementation should make it easy to add future workflows by emitting new domain events and registering new tools, without requiring major changes to the chatbot or core application.
+Once approved, I'll generate the JSON files in a dedicated folder!

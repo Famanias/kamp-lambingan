@@ -1,44 +1,50 @@
 import { NextResponse } from 'next/server';
-import { getCapacityForDates } from '@/actions/bookings';
+import { getServiceClient } from '@/lib/supabase/server';
+
+const ipLimits = new Map<string, { count: number; resetAt: number }>();
+const IP_LIMIT_MAX = 20;
+const IP_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+
+function isIpRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const limit = ipLimits.get(ip);
+  if (!limit || now > limit.resetAt) {
+    ipLimits.set(ip, { count: 1, resetAt: now + IP_LIMIT_WINDOW_MS });
+    return false;
+  }
+  limit.count++;
+  return limit.count > IP_LIMIT_MAX;
+}
 
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '127.0.0.1';
+    if (isIpRateLimited(ip)) {
+      return NextResponse.json({ error: 'Too many requests. Try again later.' }, { status: 429 });
+    }
+
     const { check_in, check_out, pax } = await req.json();
 
     if (!check_in || !check_out || !pax) {
-      return NextResponse.json(
-        { error: 'Missing check_in, check_out, or pax.' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing check_in, check_out, or pax.' }, { status: 400 });
     }
 
-    if (check_out <= check_in) {
-      return NextResponse.json(
-        { error: 'Check-out date must be after check-in date.' },
-        { status: 400 }
-      );
+    const supabase = getServiceClient();
+
+    const { data, error } = await supabase.rpc('check_booking_availability', {
+      p_check_in: check_in,
+      p_check_out: check_out,
+      p_pax: Number(pax)
+    });
+
+    if (error) {
+      console.error('[API booking/check] RPC error:', error);
+      return NextResponse.json({ error: 'Failed to check availability.' }, { status: 500 });
     }
 
-    const details = await getCapacityForDates(check_in, check_out);
-    if (details.length === 0) {
-      return NextResponse.json({ error: 'Invalid date range.' }, { status: 400 });
-    }
-
-    const maxGuestsAllowed = details.reduce((min, d) => Math.min(min, d.remainingCapacity), Infinity);
-    const maximumCapacity = details.reduce((min, d) => Math.min(min, d.maximumCapacity), Infinity);
-    const bookedGuests = details.reduce((max, d) => Math.max(max, d.bookedGuests), 0);
-    const isFullyBooked = details.some((d) => d.isFullyBooked);
-
-    const available = maxGuestsAllowed >= pax;
-
-    return NextResponse.json({
-      available,
-      maxGuestsAllowed,
-      maximumCapacity,
-      bookedGuests,
-      remainingCapacity: maxGuestsAllowed,
-      isFullyBooked,
-      details,
+    return NextResponse.json({ 
+      available: data, 
+      maxGuestsAllowed: data ? pax : 0
     });
   } catch (err: any) {
     console.error('[API booking/check] Error:', err);

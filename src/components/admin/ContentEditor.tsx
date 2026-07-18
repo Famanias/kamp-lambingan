@@ -380,6 +380,10 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                       </div>
                     </div>
                     <div>
+                      <label className={labelClass}>Stripe Payment Link URL <span className="text-gray-400 font-normal normal-case">(e.g. https://buy.stripe.com/...)</span></label>
+                      <input className={inputClass} value={p.stripePaymentLink ?? ''} placeholder="https://buy.stripe.com/test_..." onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, stripePaymentLink: e.target.value } : item))} />
+                    </div>
+                    <div>
                       <label className={labelClass}>Description *</label>
                       <textarea className={inputClass} required rows={2} value={p.description} onChange={(e) => updateField('packages', content.packages.map((item, idx) => idx === i ? { ...item, description: e.target.value } : item))} />
                     </div>
@@ -866,7 +870,7 @@ export default function ContentEditor({ initialContent }: ContentEditorProps) {
                 onClick={() => {
                   if (activeSection === 'features') updateField('features', [...content.features, { icon: 'star', title: 'New Feature', description: '' }]);
                   if (activeSection === 'activities') updateField('activities', [...content.activities, { icon: 'hiking', title: 'New Activity', description: '' }]);
-                  if (activeSection === 'packages') updateField('packages', [...content.packages, { name: 'New Package', price: 0, description: '', inclusions: [], featured: false, capacity: 2, maxStayDays: 1 }]);
+                  if (activeSection === 'packages') updateField('packages', [...content.packages, { name: 'New Package', price: 0, description: '', inclusions: [], featured: false, capacity: 2, maxStayDays: 1, stripePaymentLink: '' }]);
                   if (activeSection === 'reviews') updateField('reviews', [...content.reviews, { name: 'New Reviewer', text: '', tags: [], date: '' }]);
                   if (activeSection === 'villas') updateField('villas', [...(content.villas ?? []), { name: 'New Villa', location: '', images: [], capacity: 2, activities: [] }]);
                   if (activeSection === 'faq') updateField('faqs', [...content.faqs, { question: 'New Question?', answer: '' }]);

@@ -40,16 +40,16 @@ function hasToolCall(message: UIMessage, toolName: string): boolean {
 
 function renderInlineFormatting(text: string): React.ReactNode[] {
   const boldParts = text.split('**');
-  
+
   return boldParts.map((boldPart, boldIdx) => {
     const isBold = boldIdx % 2 === 1;
     const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
     let match;
     let lastIndex = 0;
     const parts: React.ReactNode[] = [];
-    
+
     linkRegex.lastIndex = 0;
-    
+
     while ((match = linkRegex.exec(boldPart)) !== null) {
       const matchIndex = match.index;
       if (matchIndex > lastIndex) {
@@ -58,11 +58,11 @@ function renderInlineFormatting(text: string): React.ReactNode[] {
       const linkText = match[1];
       const linkUrl = match[2];
       parts.push(
-        <a 
-          key={matchIndex} 
-          href={linkUrl} 
-          target="_blank" 
-          rel="noopener noreferrer" 
+        <a
+          key={matchIndex}
+          href={linkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
           className="underline text-emerald-600 hover:text-emerald-700 font-medium"
         >
           {linkText}
@@ -70,11 +70,11 @@ function renderInlineFormatting(text: string): React.ReactNode[] {
       );
       lastIndex = linkRegex.lastIndex;
     }
-    
+
     if (lastIndex < boldPart.length) {
       parts.push(boldPart.substring(lastIndex));
     }
-    
+
     if (isBold) {
       return <strong key={boldIdx} className="font-bold">{parts}</strong>;
     }
@@ -214,7 +214,7 @@ function PaymentInstructionCard({
       <p className="font-semibold text-emerald-800 text-sm flex items-center gap-1.5 font-bold">
         <span className="material-icons text-base">payments</span> GCash Payment Instructions
       </p>
-      
+
       <p className="leading-relaxed text-gray-700">{instructions.message}</p>
 
       <div className="bg-white rounded-xl p-3 border border-emerald-100 space-y-2">
@@ -745,7 +745,7 @@ export default function ChatWidget({ content }: { content?: any }) {
     payment_type: 'downpayment' as 'downpayment' | 'full',
   });
   const [verificationSessionId, setVerificationSessionId] = useState('');
-  const [bookingResult, setBookingResult] = useState<{ reference: string; amount_due: string; booking_id: string } | null>(null);
+  const [bookingResult, setBookingResult] = useState<{ bookingId?: string; bookingReference?: string; reference?: string; booking_id?: string; amount_due?: string; checkoutUrl?: string; expiresAt?: string; error?: string } | null>(null);
   const [verificationCode, setVerificationCode] = useState('');
   const [cardError, setCardError] = useState<string | null>(null);
   const [cardLoading, setCardLoading] = useState(false);
@@ -818,7 +818,6 @@ export default function ChatWidget({ content }: { content?: any }) {
     transport
   });
 
-  // Watch for showBookingForm tool call in messages
   useEffect(() => {
     if (activeBookingStep !== 'none') return;
     const hasShowForm = messages.some((m) => {
@@ -830,6 +829,27 @@ export default function ChatWidget({ content }: { content?: any }) {
     }
   }, [messages, activeBookingStep]);
 
+  // Poll for payment success
+  useEffect(() => {
+    if (activeBookingStep !== 'payment' || !bookingResult?.bookingId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/booking/status?id=${bookingResult.bookingId}`);
+        const data = await res.json();
+        if (data.status === 'confirmed') {
+          clearInterval(interval);
+          updateBookingStep('none');
+          const ref = bookingResult.bookingReference || bookingResult.reference;
+          sendMessage({ text: `My payment was successful. Here is my reference: ${ref}. Please confirm my booking.` });
+        }
+      } catch (err) {
+        // ignore polling errors
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [activeBookingStep, bookingResult]);
 
   const packagesList = useMemo(() => {
     const pkgs = content?.packages || [
@@ -859,7 +879,7 @@ export default function ChatWidget({ content }: { content?: any }) {
       setCardLoading(false);
       return;
     }
-    
+
     // Validate guest capacity
     const guestCount = Number(bookingDetails.pax);
     if (isNaN(guestCount) || guestCount < 1) {
@@ -879,12 +899,12 @@ export default function ChatWidget({ content }: { content?: any }) {
       setCardLoading(false);
       return;
     }
-    
+
     const checkInDate = new Date(bookingDetails.check_in + 'T00:00:00');
     const checkOutDate = new Date(bookingDetails.check_out + 'T00:00:00');
     const diffTime = checkOutDate.getTime() - checkInDate.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays <= 0) {
       setCardError('Check-out must be after check-in.');
       setCardLoading(false);
@@ -1009,7 +1029,7 @@ export default function ChatWidget({ content }: { content?: any }) {
     setCardLoading(true);
 
     try {
-      const res = await fetch('/api/booking/complete', {
+      const res = await fetch('/api/booking/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1026,10 +1046,10 @@ export default function ChatWidget({ content }: { content?: any }) {
 
       setBookingResult(data);
       sessionStorage.setItem('kl_booking_result', JSON.stringify(data));
+      if (data.checkoutUrl) {
+        sessionStorage.setItem('kl_checkout_url', data.checkoutUrl);
+      }
       updateBookingStep('payment');
-
-      // Programmatic user message to notify AI and trigger summary response
-      sendMessage({ text: `I have confirmed my booking. My booking reference is ${data.reference}.` });
     } catch (err) {
       setCardError('Failed to complete booking.');
     } finally {
@@ -1093,7 +1113,7 @@ export default function ChatWidget({ content }: { content?: any }) {
     } catch {
       // sessionStorage unavailable (e.g. private browsing quota exceeded)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const isLoading = status === 'submitted' || status === 'streaming';
@@ -1146,10 +1166,10 @@ export default function ChatWidget({ content }: { content?: any }) {
     // Client-side fail-safe intent detection to show form immediately
     const lowerText = text.toLowerCase();
     if (
-      (lowerText.includes('reservation') || 
-       lowerText.includes('book') || 
-       lowerText.includes('reserve') ||
-       lowerText.includes('making a booking')) &&
+      (lowerText.includes('reservation') ||
+        lowerText.includes('book') ||
+        lowerText.includes('reserve') ||
+        lowerText.includes('making a booking')) &&
       activeBookingStep === 'none'
     ) {
       updateBookingStep('form');
@@ -1162,10 +1182,10 @@ export default function ChatWidget({ content }: { content?: any }) {
     // Client-side fail-safe intent detection to show form immediately
     const lowerText = question.toLowerCase();
     if (
-      (lowerText.includes('reservation') || 
-       lowerText.includes('book') || 
-       lowerText.includes('reserve') ||
-       lowerText.includes('making a booking')) &&
+      (lowerText.includes('reservation') ||
+        lowerText.includes('book') ||
+        lowerText.includes('reserve') ||
+        lowerText.includes('making a booking')) &&
       activeBookingStep === 'none'
     ) {
       updateBookingStep('form');
@@ -1216,12 +1236,12 @@ export default function ChatWidget({ content }: { content?: any }) {
 
               const bookingToolPart = m.role === 'assistant'
                 ? m.parts.find(
-                    (p) =>
-                      p.type === 'dynamic-tool' &&
-                      ((p as { type: string; toolName?: string }).toolName === 'completeBooking' ||
-                       (p as { type: string; toolName?: string }).toolName === 'createBooking') &&
-                      (p as { state: string }).state === 'output-available'
-                  )
+                  (p) =>
+                    p.type === 'dynamic-tool' &&
+                    ((p as { type: string; toolName?: string }).toolName === 'completeBooking' ||
+                      (p as { type: string; toolName?: string }).toolName === 'createBooking') &&
+                    (p as { state: string }).state === 'output-available'
+                )
                 : undefined;
 
               const bookingResult =
@@ -1237,11 +1257,10 @@ export default function ChatWidget({ content }: { content?: any }) {
                   <div className={`${m.role === 'user' ? 'max-w-[85%]' : 'w-full'}`}>
                     {text && (
                       <div
-                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${
-                          m.role === 'user'
+                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed ${m.role === 'user'
                             ? 'bg-primary text-white rounded-br-sm whitespace-pre-wrap'
                             : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                        }`}
+                          }`}
                       >
                         {m.role === 'user' ? text : parseMarkdown(text)}
                       </div>
@@ -1267,7 +1286,6 @@ export default function ChatWidget({ content }: { content?: any }) {
               );
             })}
 
-            {/* Render form-driven booking cards based on active step */}
             {activeBookingStep === 'form' && (
               <BookingFormCard
                 details={bookingDetails}
@@ -1306,21 +1324,41 @@ export default function ChatWidget({ content }: { content?: any }) {
             )}
 
             {activeBookingStep === 'payment' && (
-              <div className="space-y-2">
-                <PaymentInstructionCard
-                  instructions={{
-                    message: "Scan the GCash QR code to pay, then upload the receipt image to confirm your booking request.",
-                    reference: bookingResult?.reference,
-                    booking_id: bookingResult?.booking_id,
-                    amount_due: bookingResult?.amount_due
-                  }}
-                  content={content}
-                />
+              <div className="space-y-2 mt-2">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-xs space-y-3 shadow-sm text-gray-800 text-center">
+                  <p className="font-semibold text-emerald-800 text-sm">Booking Reserved!</p>
+
+                  {bookingResult && (
+                    <div className="bg-white/50 border border-emerald-100 rounded-xl p-3 text-left space-y-1 my-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Reference:</span>
+                        <span className="font-mono font-medium">{bookingResult.bookingReference || bookingResult.reference}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Expires:</span>
+                        <span className="font-medium text-red-600">
+                          {bookingResult.expiresAt ? new Date(bookingResult.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '30 mins'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-gray-600">Click below to securely complete your payment via Stripe.</p>
+
+                  <a
+                    href={sessionStorage.getItem('kl_checkout_url') || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block w-full bg-primary hover:bg-primary/95 text-white text-xs font-semibold py-3 rounded-xl transition-all shadow-sm"
+                  >
+                    Pay Now
+                  </a>
+                </div>
                 <button
                   onClick={handleReset}
                   className="w-full bg-white hover:bg-gray-100 border border-gray-200 text-gray-500 hover:text-gray-700 text-xs font-semibold py-2 rounded-xl transition-all shadow-sm"
                 >
-                  Book Another Reservation
+                  Start a New Chat
                 </button>
               </div>
             )}
