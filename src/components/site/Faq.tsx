@@ -1,25 +1,8 @@
-'use client';
-
-import { useState, useRef } from 'react';
-import { motion, useInView, AnimatePresence, type Variants } from 'framer-motion';
 import { SiteContent } from '@/lib/types';
 import { ChevronDown } from 'lucide-react';
 import SectionBackground from './SectionBackground';
 
-const CONTAINER: Variants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.05 } },
-};
-const ITEM: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
-};
-
 export default function Faq({ content }: { content: SiteContent }) {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-8% 0px' });
-
   return (
     <section
       className="py-24 relative overflow-hidden"
@@ -71,14 +54,9 @@ export default function Faq({ content }: { content: SiteContent }) {
       ))}
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 relative" style={{ zIndex: 10 }}>
-        <motion.div
-          ref={ref}
-          variants={CONTAINER}
-          initial="hidden"
-          animate={inView ? 'visible' : 'hidden'}
-        >
+        <div>
           {/* Header */}
-          <motion.div variants={ITEM} className="text-center mb-14">
+          <div className="text-center mb-14">
             <div
               className="inline-flex rounded-full px-4 py-1.5 mb-5"
               style={{ background: 'rgba(255,255,255,0.38)', border: '1px solid rgba(255,255,255,0.55)', backdropFilter: 'blur(8px)' }}
@@ -99,62 +77,36 @@ export default function Faq({ content }: { content: SiteContent }) {
                 Message us.
               </a>
             </p>
-          </motion.div>
+          </div>
 
           {/* Accordion */}
           <div className="space-y-3">
-            {content.faqs.map((faq, i) => {
-              const isOpen = openIndex === i;
-              return (
-                <motion.div
-                  key={i}
-                  variants={ITEM}
-                  className="rounded-2xl overflow-hidden"
-                  style={{
-                    background: 'rgba(255,255,255,0.32)',
-                    border: '1px solid rgba(255,255,255,0.45)',
-                    backdropFilter: 'blur(12px)',
-                  }}
+            {content.faqs.map((faq, i) => (
+              <details
+                key={i}
+                className="group rounded-2xl overflow-hidden transition-colors"
+                style={{
+                  background: 'rgba(255,255,255,0.32)',
+                  border: '1px solid rgba(255,255,255,0.45)',
+                  backdropFilter: 'blur(12px)',
+                }}
+              >
+                <summary className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left cursor-pointer list-none select-none hover:bg-white/20">
+                  <span className="font-body font-medium text-sm" style={{ color: '#0c2d50' }}>
+                    {faq.question}
+                  </span>
+                  <ChevronDown className="w-4 h-4 flex-shrink-0 transition-transform duration-300 group-open:rotate-180" style={{ color: '#0c4a7a' }} />
+                </summary>
+                <p
+                  className="px-5 pb-5 font-body font-light text-sm leading-relaxed"
+                  style={{ color: 'rgba(12,45,80,0.70)' }}
                 >
-                  <button
-                    onClick={() => setOpenIndex(isOpen ? null : i)}
-                    aria-expanded={isOpen}
-                    className="w-full flex items-center justify-between gap-4 px-5 py-4 text-left select-none transition-colors hover:bg-white/20"
-                  >
-                    <span className="font-body font-medium text-sm" style={{ color: '#0c2d50' }}>
-                      {faq.question}
-                    </span>
-                    <motion.div
-                      animate={{ rotate: isOpen ? 180 : 0 }}
-                      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                    >
-                      <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: '#0c4a7a' }} />
-                    </motion.div>
-                  </button>
-                  <AnimatePresence initial={false}>
-                    {isOpen && (
-                      <motion.div
-                        key="answer"
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                        style={{ overflow: 'hidden' }}
-                      >
-                        <p
-                          className="px-5 pb-5 font-body font-light text-sm leading-relaxed"
-                          style={{ color: 'rgba(12,45,80,0.70)' }}
-                        >
-                          {faq.answer}
-                        </p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </motion.div>
-              );
-            })}
+                  {faq.answer}
+                </p>
+              </details>
+            ))}
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

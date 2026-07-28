@@ -50,3 +50,5 @@ ROADMAP.md
 #supabase sql files
 
 /supabase/*
+
+/lighthouse_test_reports/*

@@ -1,20 +1,7 @@
-﻿'use client';
-
-import { useRef } from 'react';
-import { motion, useInView, type Variants } from 'framer-motion';
 import { SiteContent } from '@/lib/types';
 import Image from 'next/image';
 import Link from 'next/link';
 import SectionBackground from './SectionBackground';
-
-const CONTAINER: Variants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.05 } },
-};
-const ITEM: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
-};
 
 const NAV_LINKS = [
   { label: 'Experiences', href: '#experiences' },
@@ -59,8 +46,6 @@ const TwitterIcon = () => (
 
 export default function Footer({ content }: { content: SiteContent }) {
   const year = new Date().getFullYear();
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-5% 0px' });
 
   const ALL_SOCIALS = [
     { key: 'facebook', url: content.facebookUrl, label: 'Facebook', Icon: FacebookIcon },
@@ -162,16 +147,11 @@ export default function Footer({ content }: { content: SiteContent }) {
 
       {/* Content */}
       <div className="pt-12 pb-0">
-        <motion.div
-          ref={ref}
+        <div
           className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative"
           style={{ zIndex: 10 }}
-          variants={CONTAINER}
-          initial="hidden"
-          animate={inView ? 'visible' : 'hidden'}
         >
-          <motion.div
-            variants={ITEM}
+          <div
             className="grid grid-cols-1 md:grid-cols-3 gap-12 pb-12 border-b"
             style={{ borderColor: 'rgba(255,255,255,0.08)' }}
           >
@@ -238,26 +218,11 @@ export default function Footer({ content }: { content: SiteContent }) {
                       href={url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:text-sky-300"
+                      className="w-9 h-9 rounded-full flex items-center justify-center transition-all hover:text-sky-300 hover:bg-sky-500/20 hover:border-sky-400/40"
                       style={{
                         color: 'rgba(255,255,255,0.48)',
                         background: 'rgba(255,255,255,0.07)',
                         border: '1px solid rgba(255,255,255,0.12)',
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLElement).style.boxShadow =
-                          '0 0 14px rgba(56,189,248,0.35)';
-                        (e.currentTarget as HTMLElement).style.background =
-                          'rgba(56,189,248,0.12)';
-                        (e.currentTarget as HTMLElement).style.borderColor =
-                          'rgba(56,189,248,0.35)';
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLElement).style.boxShadow = '';
-                        (e.currentTarget as HTMLElement).style.background =
-                          'rgba(255,255,255,0.07)';
-                        (e.currentTarget as HTMLElement).style.borderColor =
-                          'rgba(255,255,255,0.12)';
                       }}
                       aria-label={label}
                     >
@@ -289,16 +254,15 @@ export default function Footer({ content }: { content: SiteContent }) {
                 </p>
               )}
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            variants={ITEM}
+          <div
             className="pt-8 text-center font-body font-light text-xs"
             style={{ color: 'rgba(255,255,255,0.26)' }}
           >
             &copy; {year} {content.siteTitle || 'Kamp Lambingan'}. All rights reserved.
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </div>
     </footer>
   );

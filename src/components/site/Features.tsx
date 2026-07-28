@@ -1,23 +1,8 @@
-﻿'use client';
-
-import { useRef } from 'react';
-import { motion, useInView, type Variants } from 'framer-motion';
 import { SiteContent } from '@/lib/types';
 import SectionBackground from './SectionBackground';
-
-const CONTAINER: Variants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.11, delayChildren: 0.05 } },
-};
-const ITEM: Variants = {
-  hidden: { opacity: 0, y: 28 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] } },
-};
+import IconRenderer from './IconRenderer';
 
 export default function Features({ content }: { content: SiteContent }) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-8% 0px' });
-
   return (
     <section
       className="py-24 relative overflow-hidden"
@@ -84,14 +69,9 @@ export default function Features({ content }: { content: SiteContent }) {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative" style={{ zIndex: 2 }}>
-        <motion.div
-          ref={ref}
-          variants={CONTAINER}
-          initial="hidden"
-          animate={inView ? 'visible' : 'hidden'}
-        >
+        <div>
           {/* Header */}
-          <motion.div variants={ITEM} className="text-center mb-16">
+          <div className="text-center mb-16">
             <div className="nature-glass inline-flex rounded-full px-4 py-1.5 mb-5">
               <span className="font-body font-medium text-xs text-primary tracking-widest uppercase">
                 The Kamp Difference
@@ -106,22 +86,20 @@ export default function Features({ content }: { content: SiteContent }) {
             <p className="font-body font-light text-sm max-w-xl mx-auto leading-relaxed" style={{ color: 'rgba(255, 255, 255, 0.78)' }}>
               {content.featuresSubtitle}
             </p>
-          </motion.div>
+          </div>
 
           {/* Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {content.features.map((f, i) => (
-              <motion.div
+              <div
                 key={i}
-                variants={ITEM}
-                whileHover={{ y: -4, transition: { duration: 0.22 } }}
-                className="nature-glass rounded-2xl p-6 flex gap-4 hover:shadow-lg transition-shadow duration-300"
+                className="nature-glass rounded-2xl p-6 flex gap-4 hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
               >
                 <div
                   className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center"
                   style={{ background: 'rgba(20,184,129,0.12)' }}
                 >
-                  <span className="material-icons text-primary" style={{ fontSize: 22 }}>{f.icon}</span>
+                  <IconRenderer name={f.icon} size={22} className="text-primary" />
                 </div>
                 <div>
                   <h3 className="font-body font-semibold text-sm mb-1.5" style={{ color: '#152033' }}>
@@ -131,10 +109,10 @@ export default function Features({ content }: { content: SiteContent }) {
                     {f.description}
                   </p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

@@ -1,24 +1,9 @@
-'use client';
-
-import { useRef } from 'react';
 import Link from 'next/link';
-import { motion, useInView, type Variants } from 'framer-motion';
 import { SiteContent } from '@/lib/types';
 import { Check } from 'lucide-react';
 import SectionBackground from './SectionBackground';
 
-const CONTAINER: Variants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { staggerChildren: 0.13, delayChildren: 0.05 } },
-};
-const ITEM: Variants = {
-  hidden: { opacity: 0, y: 32 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.65, ease: [0.22, 1, 0.36, 1] } },
-};
-
 export default function Packages({ content }: { content: SiteContent }) {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-8% 0px' });
   return (
     <section
       className="py-24 relative overflow-hidden"
@@ -33,7 +18,6 @@ export default function Packages({ content }: { content: SiteContent }) {
         }}
       />
 
-      {/* Water-ripple ring decorations */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ zIndex: 1 }}>
         <div
           className="absolute rounded-full border-2 border-primary/15 w-72 h-72"
@@ -47,39 +31,12 @@ export default function Packages({ content }: { content: SiteContent }) {
           className="absolute rounded-full border border-teal-300/20 w-40 h-40"
           style={{ top: '45%', left: '45%', animation: 'water-ring 7s ease-out 1.5s infinite' }}
         />
-        {/* Decorative leaf shapes */}
-        {[
-          { top: '-10%', left: '30%',  delay: '2s',   dur: '15s', size: 16 },
-          { top: '-10%', left: '62%',  delay: '6s',   dur: '13s', size: 14 },
-          { top: '-10%', right: '12%', delay: '9.5s', dur: '17s', size: 18 },
-        ].map((leaf, i) => (
-          <svg
-            key={i}
-            width={leaf.size} height={leaf.size * 1.6}
-            viewBox="0 0 16 24"
-            fill="rgba(3, 87, 59, 0.18)"
-            style={{
-              position: 'absolute',
-              top: leaf.top,
-              left: 'left' in leaf ? leaf.left : undefined,
-              right: 'right' in leaf ? leaf.right : undefined,
-              animation: `leaf-drift ${leaf.dur} linear ${leaf.delay} infinite`,
-            }}
-          >
-            <path d="M8 0 C8 0, 0 8 0 14 C0 20 4 24 8 24 C12 24 16 20 16 14 C16 8 8 0 8 0Z" />
-          </svg>
-        ))}
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative" style={{ zIndex: 2 }}>
-        <motion.div
-          ref={ref}
-          variants={CONTAINER}
-          initial="hidden"
-          animate={inView ? 'visible' : 'hidden'}
-        >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative" style={{ zIndex: 10 }}>
+        <div>
           {/* Header */}
-          <motion.div variants={ITEM} className="text-center mb-16">
+          <div className="text-center mb-16">
             <div className="nature-glass inline-flex rounded-full px-4 py-1.5 mb-5">
               <span className="font-body font-medium text-xs text-primary tracking-widest uppercase">
                 Rates &amp; Packages
@@ -91,109 +48,90 @@ export default function Packages({ content }: { content: SiteContent }) {
             >
               {content.packagesTitle}
             </h2>
-            <p className="font-body font-light text-sm max-w-xl mx-auto leading-relaxed" style={{ color: 'rgba(21,32,51,0.6)' }}>
+            <p className="font-body font-light text-sm max-w-xl mx-auto leading-relaxed" style={{ color: 'rgba(21,32,51,0.62)' }}>
               {content.packagesSubtitle}
             </p>
-          </motion.div>
+          </div>
 
           {/* Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-7 items-start">
-          {content.packages.map((pkg, i) =>
-            pkg.featured ? (
-              /* Featured card — teal gradient */
-              <motion.div
-                key={i}
-                variants={ITEM}
-                whileHover={{ y: -6, transition: { duration: 0.25 } }}
-                className="relative rounded-2xl p-8 shadow-2xl shadow-primary/20 overflow-hidden"
-                style={{ background: 'linear-gradient(135deg, #14b881 0%, #0d9268 100%)' }}
-              >
-                {/* Gradient shimmer overlay */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+            {content.packages.map((pkg, i) => {
+              const isFeatured = pkg.featured;
+              return (
                 <div
-                  className="absolute inset-0 opacity-20"
+                  key={i}
+                  className={`rounded-3xl p-8 flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${
+                    isFeatured ? 'nature-glass-strong ring-2 ring-primary/40 shadow-xl' : 'nature-glass'
+                  }`}
                   style={{
-                    background: 'radial-gradient(ellipse at top left, rgba(255,255,255,0.5) 0%, transparent 60%)',
+                    boxShadow: isFeatured
+                      ? '0 20px 48px rgba(20,184,129,0.18), inset 0 1px 0 rgba(255,255,255,0.9)'
+                      : '0 8px 32px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.8)',
                   }}
-                />
-                {pkg.sublabel && (
-                  <div className="absolute -top-0 right-6 bg-white text-primary text-[10px] font-body font-semibold px-3 py-1 rounded-b-full shadow-sm uppercase tracking-wider">
-                    {pkg.sublabel}
+                >
+                  <div>
+                    {/* Badge */}
+                    <div className="flex items-center justify-between mb-4">
+                      {pkg.label && (
+                        <span className="font-body font-semibold text-[11px] uppercase tracking-wider text-primary px-3 py-1 rounded-full bg-primary/10">
+                          {pkg.label}
+                        </span>
+                      )}
+                      {pkg.sublabel && (
+                        <span className="font-body font-medium text-[10px] text-emerald-800 px-2.5 py-0.5 rounded-full bg-emerald-100">
+                          {pkg.sublabel}
+                        </span>
+                      )}
+                    </div>
+
+                    <h3 className="font-heading italic text-2xl mb-2" style={{ color: '#152033' }}>
+                      {pkg.name}
+                    </h3>
+                    <p className="font-body font-light text-xs leading-relaxed mb-6" style={{ color: 'rgba(21,32,51,0.6)' }}>
+                      {pkg.description}
+                    </p>
+
+                    {/* Price */}
+                    <div className="mb-6 flex items-baseline gap-1">
+                      <span className="font-body font-light text-sm" style={{ color: 'rgba(21,32,51,0.5)' }}>₱</span>
+                      <span className="font-heading italic text-4xl" style={{ color: '#152033' }}>
+                        {pkg.price.toLocaleString()}
+                      </span>
+                      <span className="font-body font-light text-xs ml-1" style={{ color: 'rgba(21,32,51,0.5)' }}>
+                        / stay
+                      </span>
+                    </div>
+
+                    {/* Features list */}
+                    {pkg.features && pkg.features.length > 0 && (
+                      <ul className="space-y-3 mb-8">
+                        {pkg.features.map((feat, idx) => (
+                          <li key={idx} className="flex items-center gap-2.5 font-body font-light text-xs" style={{ color: 'rgba(21,32,51,0.75)' }}>
+                            <div className="w-4 h-4 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                              <Check className="w-2.5 h-2.5 text-primary" />
+                            </div>
+                            {feat}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                )}
-                <div className="relative">
-                  {pkg.label && (
-                    <p className="font-body text-[10px] font-medium text-white/70 uppercase tracking-widest mb-3">{pkg.label}</p>
-                  )}
-                  <h3 className="font-body font-semibold text-xl text-white mb-1">{pkg.name}</h3>
-                  <div
-                    className="font-heading italic text-white mb-1"
-                    style={{ fontSize: '2.5rem', lineHeight: 1, letterSpacing: '-0.02em' }}
-                  >
-                    {typeof pkg.price === 'number' ? '₱' + pkg.price.toLocaleString('en-PH') : pkg.price}
-                  </div>
-                  {pkg.description && (
-                    <p className="font-body font-light text-xs text-white/70 mb-6 leading-relaxed">{pkg.description}</p>
-                  )}
-                  <ul className="space-y-2.5 mb-8">
-                    {(pkg.features ?? []).map((f, j) => (
-                      <li key={j} className="flex items-center gap-2.5">
-                        <div className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
-                          <Check className="w-2.5 h-2.5 text-white" />
-                        </div>
-                        <span className="font-body text-xs text-white/90">{f}</span>
-                      </li>
-                    ))}
-                  </ul>
+
                   <Link
                     href={`/book?package=${encodeURIComponent(pkg.name)}`}
-                    className="block w-full text-center py-3 rounded-full bg-white text-primary font-body font-semibold text-sm hover:bg-white/90 transition-colors shadow-lg"
+                    className={`w-full py-3.5 px-6 rounded-full font-body font-medium text-xs text-center transition-all duration-300 ${
+                      isFeatured
+                        ? 'bg-primary text-white hover:bg-primary-dark shadow-md hover:shadow-lg'
+                        : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
+                    }`}
                   >
-                    Book This Package
+                    Select Package
                   </Link>
                 </div>
-              </motion.div>
-            ) : (
-              /* Non-featured card — nature glass */
-              <motion.div
-                key={i}
-                variants={ITEM}
-                whileHover={{ y: -4, transition: { duration: 0.22 } }}
-                className="nature-glass rounded-2xl p-8 hover:shadow-xl transition-shadow duration-300"
-              >
-                {pkg.label && (
-                  <p className="font-body text-[10px] font-medium text-primary uppercase tracking-widest mb-3">{pkg.label}</p>
-                )}
-                <h3 className="font-body font-semibold text-lg mb-1" style={{ color: '#152033' }}>{pkg.name}</h3>
-                <div
-                  className="font-heading italic mb-1"
-                  style={{ fontSize: '2.25rem', lineHeight: 1, letterSpacing: '-0.02em', color: '#152033' }}
-                >
-                  {typeof pkg.price === 'number' ? '₱' + pkg.price.toLocaleString('en-PH') : pkg.price}
-                </div>
-                {pkg.description && (
-                  <p className="font-body font-light text-xs mb-6 leading-relaxed" style={{ color: 'rgba(21,32,51,0.6)' }}>{pkg.description}</p>
-                )}
-                <ul className="space-y-2.5 mb-8">
-                  {(pkg.features ?? []).map((f, j) => (
-                    <li key={j} className="flex items-center gap-2.5">
-                      <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(20,184,129,0.15)' }}>
-                        <Check className="w-2.5 h-2.5 text-primary" />
-                      </div>
-                      <span className="font-body text-xs" style={{ color: 'rgba(21,32,51,0.75)' }}>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href={`/book?package=${encodeURIComponent(pkg.name)}`}
-                  className="block w-full text-center py-3 rounded-full border border-primary text-primary font-body font-medium text-sm hover:bg-primary hover:text-white transition-all"
-                >
-                  Book This Package
-                </Link>
-              </motion.div>
-            )
-          )}
+              );
+            })}
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

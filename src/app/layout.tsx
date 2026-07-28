@@ -6,16 +6,18 @@ import { Analytics } from '@vercel/analytics/next';
 const barlow = Barlow({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600'],
-  display: 'swap',
+  display: 'optional',
   variable: '--font-barlow',
+  preload: true,
 });
 
 const instrumentSerif = Instrument_Serif({
   subsets: ['latin'],
   weight: ['400'],
   style: ['normal', 'italic'],
-  display: 'swap',
+  display: 'optional',
   variable: '--font-instrument-serif',
+  preload: true,
 });
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://kamplambingan.site';
@@ -45,10 +47,6 @@ export default function RootLayout({
     <html lang="en" className={`${barlow.variable} ${instrumentSerif.variable}`}>
       <head>
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/icon?family=Material+Icons&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body
         className="bg-background-light antialiased"

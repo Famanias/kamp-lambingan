@@ -1,52 +1,22 @@
-'use client';
-
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRef } from 'react';
-import { motion } from 'framer-motion';
 import { SiteContent } from '@/lib/types';
 import { ArrowUpRight, ChevronDown, MapPin } from 'lucide-react';
 import SectionBackground from './SectionBackground';
 
 const VIDEO_RE = /\.(mp4|webm|ogg|m3u8)(\?|#|$)/i;
 
-const BlurText = ({ text, delay = 0 }: { text: string; delay?: number }) => {
-  const words = text.split(' ');
-  return (
-    <>
-      {words.map((word, i) => (
-        <motion.span
-          key={i}
-          initial={{ filter: 'blur(14px)', opacity: 0, y: 10 }}
-          animate={{ filter: 'blur(0px)', opacity: 1, y: 0 }}
-          transition={{ delay: delay + i * 0.07, duration: 0.7, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="inline-block"
-          style={{ marginRight: '0.22em' }}
-        >
-          {word}
-        </motion.span>
-      ))}
-    </>
-  );
-};
-
 export default function Hero({ content }: { content: SiteContent }) {
-  const heroRef = useRef<HTMLElement>(null);
-
-  // Resolve media: prefer heroBackground, fall back to heroImage
   const mediaSrc = content.heroBackground || content.heroImage;
-  const isVideo  = mediaSrc ? VIDEO_RE.test(mediaSrc) : false;
+  const isVideo = mediaSrc ? VIDEO_RE.test(mediaSrc) : false;
 
   return (
-    <header ref={heroRef} className="relative overflow-hidden" style={{ height: '1000px' }}>
+    <header className="relative overflow-hidden" style={{ height: '1000px' }}>
       {/* Background media layer */}
       <div className="absolute inset-0 z-0">
         {mediaSrc ? (
           isVideo ? (
-            /* Video / HLS — delegated to SectionBackground */
-            <SectionBackground
-              src={mediaSrc}
-            />
+            <SectionBackground src={mediaSrc} />
           ) : (
             <Image
               src={mediaSrc}
@@ -55,6 +25,7 @@ export default function Hero({ content }: { content: SiteContent }) {
               fill
               sizes="100vw"
               priority
+              fetchPriority="high"
               unoptimized={typeof mediaSrc === 'string' && mediaSrc.startsWith('/api/image')}
             />
           )
@@ -66,19 +37,14 @@ export default function Hero({ content }: { content: SiteContent }) {
       {/* Content */}
       <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4 sm:px-6 pt-24">
         {/* Location badge */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-          className="nature-glass rounded-full px-4 py-1.5 inline-flex items-center gap-2 mb-8"
-        >
+        <div className="nature-glass rounded-full px-4 py-1.5 inline-flex items-center gap-2 mb-8">
           <MapPin className="w-3.5 h-3.5 text-primary flex-shrink-0" />
           <span className="font-body font-medium text-xs text-primary tracking-widest uppercase">
             {content.heroLocation}
           </span>
-        </motion.div>
+        </div>
 
-        {/* Main heading — BlurText word-by-word animation */}
+        {/* Main heading */}
         <h1
           className="font-heading italic text-white mb-8"
           style={{
@@ -89,27 +55,19 @@ export default function Hero({ content }: { content: SiteContent }) {
             textShadow: '0 2px 24px rgba(0,0,0,0.18)',
           }}
         >
-          <BlurText text={content.heroTitle} delay={0.5} />
+          {content.heroTitle}
         </h1>
 
         {/* Subtitle */}
-        <motion.p
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.3, duration: 0.7 }}
+        <p
           className="font-body font-light max-w-xl mx-auto mb-10 leading-relaxed"
           style={{ color: 'rgba(255,255,255,0.88)', fontSize: '1.5rem' }}
         >
           {content.heroSubtitle}
-        </motion.p>
+        </p>
 
         {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.6, duration: 0.6 }}
-          className="flex flex-col sm:flex-row gap-4 items-center"
-        >
+        <div className="flex flex-col sm:flex-row gap-4 items-center">
           <Link
             href="/book"
             className="inline-flex items-center gap-2 bg-primary text-white px-8 py-3.5 rounded-full font-body font-medium text-sm shadow-xl shadow-primary/30 hover:bg-primary/90 transition-all hover:-translate-y-0.5 active:translate-y-0"
@@ -122,40 +80,29 @@ export default function Hero({ content }: { content: SiteContent }) {
             className="nature-glass inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-body font-medium text-sm transition-all hover:shadow-md"
             style={{ color: '#152033' }}
           >
-            Explore Gallery
+            Explore Kamp
           </a>
-        </motion.div>
+        </div>
 
-        {/* Trust line */}
+        {/* Tagline */}
         {content.tagline && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 2.0, duration: 0.7 }}
-            className="mt-10 flex items-center gap-3"
-          >
+          <div className="mt-10 flex items-center gap-3">
             <span className="w-8 h-px bg-primary/50" />
             <span className="font-body text-lg font-light text-primary/90 tracking-wider">
               {content.tagline}
             </span>
             <span className="w-8 h-px bg-primary/50" />
-          </motion.div>
+          </div>
         )}
 
         {/* Scroll indicator */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 2.3, duration: 0.6 }}
-          className="absolute bottom-10 left-1/2 -translate-x-1/2"
+        <a
+          href="#experiences"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 text-white/70 hover:text-white transition-colors group"
         >
-          <motion.div
-            animate={{ y: [0, 6, 0] }}
-            transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
-          >
-            <ChevronDown className="w-5 h-5 text-primary/60" />
-          </motion.div>
-        </motion.div>
+          <span className="font-body font-medium text-[10px] uppercase tracking-widest">Discover</span>
+          <ChevronDown className="w-4 h-4 animate-bounce" />
+        </a>
       </div>
     </header>
   );

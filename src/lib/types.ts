@@ -86,6 +86,9 @@ export interface SiteContent {
   gcashQrImage?: string;
   gcashNumber?: string;
   gcashName?: string;
+  bookTitle?: string;
+  bookSubtitle?: string;
+  bookDescription?: string;
   // Per-section background media (video URL .m3u8/.mp4 or image URL)
   heroBackground?: string;
   featuresBackground?: string;
