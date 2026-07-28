@@ -55,6 +55,7 @@ export default function Hero({ content }: { content: SiteContent }) {
               fill
               sizes="100vw"
               priority
+              unoptimized={typeof mediaSrc === 'string' && mediaSrc.startsWith('/api/image')}
             />
           )
         ) : (

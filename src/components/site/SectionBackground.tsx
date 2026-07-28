@@ -80,6 +80,7 @@ export default function SectionBackground({
           fill
           sizes="100vw"
           style={{ animation: 'parallax-drift 24s ease-in-out infinite' }}
+          unoptimized={typeof src === 'string' && src.startsWith('/api/image')}
         />
       )}
       <div className="absolute inset-0" style={overlayStyle ?? DEFAULT_OVERLAY} />
