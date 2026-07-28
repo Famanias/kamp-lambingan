@@ -848,7 +848,6 @@ export default function BookForm({ content }: BookFormProps) {
                     width={320}
                     height={320}
                     className="object-contain border border-gray-200 rounded-lg bg-white p-2"
-                    unoptimized
                   />
                 </div>
               )}

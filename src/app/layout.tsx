@@ -1,9 +1,28 @@
 import type { Metadata } from 'next';
+import { Barlow, Instrument_Serif } from 'next/font/google';
 import './globals.css';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 
+const barlow = Barlow({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600'],
+  display: 'swap',
+  variable: '--font-barlow',
+});
+
+const instrumentSerif = Instrument_Serif({
+  subsets: ['latin'],
+  weight: ['400'],
+  style: ['normal', 'italic'],
+  display: 'swap',
+  variable: '--font-instrument-serif',
+});
+
+const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://kamplambingan.site';
+
 export const metadata: Metadata = {
+  metadataBase: new URL(baseUrl),
   title: 'Kamp Lambingan – Riverside Glamping in Zambales',
   description:
     'Escape to Kamp Lambingan, your premium riverside glamping destination in San Antonio, Zambales. Private AC villas, river access, and unforgettable nature experiences.',
@@ -13,7 +32,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Kamp Lambingan – Riverside Glamping in Zambales',
     description: 'Premium riverside glamping in San Antonio, Zambales.',
-    url: 'https://kamplambingan.com',
+    url: 'https://kamplambingan.site',
     siteName: 'Kamp Lambingan',
     locale: 'en_PH',
     type: 'website',
@@ -24,16 +43,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${barlow.variable} ${instrumentSerif.variable}`}>
       <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Barlow:wght@300;400;500;600&display=swap"
-          rel="stylesheet"
-        />
-        <link
-          href="https://fonts.googleapis.com/icon?family=Material+Icons"
+          href="https://fonts.googleapis.com/icon?family=Material+Icons&display=swap"
           rel="stylesheet"
         />
       </head>

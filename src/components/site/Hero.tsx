@@ -54,8 +54,7 @@ export default function Hero({ content }: { content: SiteContent }) {
               className="object-cover brightness-50"
               fill
               sizes="100vw"
-              fetchPriority="high"
-              unoptimized
+              priority
             />
           )
         ) : (

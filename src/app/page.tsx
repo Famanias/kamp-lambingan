@@ -11,7 +11,7 @@ import Faq from '@/components/site/Faq';
 import BookSection from '@/components/site/BookSection';
 import Footer from '@/components/site/Footer';
 import NavbarClient from '@/components/site/NavbarClient';
-import ChatWidget from '@/components/site/ChatWidget';
+import ChatWidgetWrapper from '@/components/site/ChatWidgetWrapper';
 
 export default async function Home() {
   const content = await getContent();
@@ -31,7 +31,7 @@ export default async function Home() {
       </main>
       <Footer content={content} />
       <NavbarClient />
-      <ChatWidget content={content} />
+      <ChatWidgetWrapper content={content} />
     </>
   );
 }
